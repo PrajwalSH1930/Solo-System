@@ -1,11 +1,14 @@
+/* eslint-disable no-unused-vars */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { systemSounds } from '../utils/sounds'
+import { systemNotifications } from '../utils/notifications';
 
 export const useHunterStore = create(
   persist(
     (set, get) => ({
-      // --- CORE ---
+      // --- CORE STATE ---
+      playerName: "",
       level: 1,
       exp: 0,
       nextLevelExp: 100,
@@ -18,11 +21,25 @@ export const useHunterStore = create(
       currentStreak: 0,
       lastCompletionDate: null,
       lastRewardClaimedDate: null,
+      isAwakened: false,
 
-      // NEW: MORNING SYSTEM
-      wakeUpTime: "07:00", // Default 7 AM
+      // --- MORNING & REST SYSTEM ---
+      wakeUpTime: "06:00",
       hasReportedMorning: false,
+      isResting: false,
+      restStartTime: null,
+      mana: 100,
+      maxMana: 100,
+      
+      // --- REAL LIFE UTILS & VITALITY ---
+      waterGlassCount: 0,
+      systemWarning: null,
+      fatigue: 0,
+      maxFatigue: 100,
+      totalStepsToday: 0,
+      lastSyncTimestamp: null,
 
+      // --- STATS & INVENTORY ---
       stats: { strength: 10, agility: 10, intelligence: 10, perception: 10 },
       inventory: [],
       equippedItems: { weapon: null, armor: null },
@@ -39,12 +56,11 @@ export const useHunterStore = create(
       bossHealth: 100,
       bossMaxHealth: 100,
       quests: [
-        { id: 1, title: "Pushups [0/100]", completed: false, reward: 25, goldReward: 100 },
-        { id: 2, title: "Sit-ups [0/100]", completed: false, reward: 25, goldReward: 100 },
-        { id: 3, title: "Squats [0/100]", completed: false, reward: 25, goldReward: 100 },
-        { id: 4, title: "Running [10km]", completed: false, reward: 50, goldReward: 250 },
+        { id: 1, title: "Pushups [0/50]", completed: false, reward: 25, goldReward: 100 },
+        { id: 2, title: "Sit-ups [0/50]", completed: false, reward: 25, goldReward: 100 },
+        { id: 3, title: "Squats [0/50]", completed: false, reward: 25, goldReward: 100 },
+        { id: 4, title: "Walking [6K]", completed: false, reward: 50, goldReward: 250 },
       ],
-      secretQuest: null,
       inDungeon: false,
       dungeonTimer: 0,
       activeDungeon: null,
@@ -52,47 +68,27 @@ export const useHunterStore = create(
       penaltyActive: false,
       timeLeft: 24 * 60 * 60,
 
-      // --- ACTIONS ---
-      setWakeUpTime: (time) => set({ wakeUpTime: time }),
-      
-      reportMorning: () => {
-        const state = get();
-        systemSounds.levelUp();
-        set({ hasReportedMorning: true });
-        state.addLog("Morning check-in complete. System active.");
-      },
-
-      claimDailyReward: () => {
-        const today = new Date().toISOString().split('T')[0];
-        const state = get();
-        if (state.lastRewardClaimedDate === today) return { success: false, message: "REWARD ALREADY CLAIMED" };
-
-        const rewardGold = 200 + (state.currentStreak * 50);
-        const newItem = { id: Date.now(), name: 'Strength Elixir', price: 500, category: 'consumable', desc: '+1 STR' };
-        
-        systemSounds.levelUp();
-        set({
-          gold: state.gold + rewardGold,
-          inventory: [...state.inventory, newItem],
-          lastRewardClaimedDate: today,
-          hasReportedMorning: false // Reset morning check-in for the new day
-        });
-        state.addLog(`Claimed Daily Reward: ${rewardGold}G + Elixir`);
-        return { success: true, message: `RECEIVED: ${rewardGold}G & ELIXIR` };
+      // --- CORE ACTIONS ---
+      setPlayerName: (name) => {
+        set({ playerName: name });
+        get().addLog(`Identity Verified: Player [${name}] registered.`);
       },
 
       getPowerMultiplier: () => {
-        const job = get().job;
-        if (job === 'Necromancer') return 1.5;
-        if (job === 'Assassin') return 1.3;
-        if (job === 'Fighter') return 1.4;
-        return 1.0;
+        const state = get();
+        if (state.isAwakened) return 1.5;
+        const multipliers = { 'Necromancer': 1.5, 'Assassin': 1.3, 'Fighter': 1.4, 'None': 1.0 };
+        return multipliers[state.job] || 1.0;
       },
 
       gainExp: (amount) => set((state) => {
         if (state.bossActive) return state;
-        const multiplier = state.currentStreak >= 3 ? 2 : 1;
-        let newExp = state.exp + (amount * multiplier);
+        let fatigueMultiplier = state.fatigue >= 100 ? 0 : state.fatigue > 70 ? 0.5 : 1.0;
+        const intBonus = state.stats.intelligence * 0.01; 
+        const streakMultiplier = state.currentStreak >= 3 ? 2 : 1;
+        const totalMultiplier = (streakMultiplier * fatigueMultiplier) + intBonus;
+
+        let newExp = state.exp + (amount * totalMultiplier);
         let newLevel = state.level;
         let newNextLevelExp = state.nextLevelExp;
         let newPoints = state.abilityPoints;
@@ -106,8 +102,14 @@ export const useHunterStore = create(
           systemSounds.levelUp();
           if (newLevel % 10 === 0) triggerBoss = true; 
         }
-        return { level: newLevel, exp: newExp, nextLevelExp: newNextLevelExp, abilityPoints: newPoints, bossActive: triggerBoss, bossHealth: 100 + (newLevel * 10) };
+        return { level: newLevel, exp: newExp, nextLevelExp: newNextLevelExp, abilityPoints: newPoints, bossActive: triggerBoss, bossHealth: 100 + (newLevel * 10), bossMaxHealth: 100 + (newLevel * 10) };
       }),
+
+      resetQuests: () => set((state) => ({
+        quests: state.quests.map(q => ({ ...q, completed: false })),
+        hasReportedMorning: false,
+        waterGlassCount: 0
+      })),
 
       completeQuest: (id) => {
         const state = get();
@@ -116,149 +118,135 @@ export const useHunterStore = create(
           systemSounds.questComplete();
           state.gainExp(quest.reward);
           const updatedQuests = state.quests.map(q => q.id === id ? { ...q, completed: true } : q);
-          const allDone = updatedQuests.every(q => q.completed);
-
-          if (allDone) {
-            const today = new Date().toISOString().split('T')[0];
-            const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = yesterday.toISOString().split('T')[0];
-            let newStreak = state.currentStreak;
-            if (state.lastCompletionDate === yesterdayStr) newStreak += 1;
-            else if (state.lastCompletionDate !== today) newStreak = 1;
-            set({ gold: state.gold + quest.goldReward, quests: updatedQuests, currentStreak: newStreak, lastCompletionDate: today });
-            state.addLog(`Daily Quests Complete! Streak: ${newStreak}`);
-          } else {
-            set({ gold: state.gold + quest.goldReward, quests: updatedQuests });
-          }
+          set({ gold: state.gold + quest.goldReward, quests: updatedQuests, fatigue: Math.min(state.fatigue + 10, 100) });
         }
       },
 
+      syncHealthData: async () => {
+        const state = get();
+        systemSounds.click();
+        const newSteps = 12000; 
+        const diff = newSteps - state.totalStepsToday;
+        if (diff > 0) {
+          state.gainExp(Math.floor(diff / 100));
+          set({ totalStepsToday: newSteps, mana: Math.min(state.mana + Math.floor(diff / 500), state.maxMana), lastSyncTimestamp: Date.now() });
+          if (newSteps >= 12000) state.completeQuest(4);
+        }
+      },
+
+      triggerAwakening: (chosenJob) => {
+        const state = get();
+        set({ isAwakened: true, job: chosenJob, rank: "S", currentTitle: "Shadow Monarch", maxMana: state.maxMana + 500, mana: state.maxMana + 500 });
+        state.addLog("SYSTEM EVOLUTION COMPLETE. PROTOCOL 'MONARCH' ACTIVE.");
+        systemSounds.levelUp();
+      },
+
       extractShadow: () => set((state) => {
-        const shadowNames = ["Igris", "Tank", "Iron", "Kaisel"];
-        const randomShadow = shadowNames[Math.floor(Math.random() * shadowNames.length)];
+        const shadowLimit = state.isAwakened ? 10 : 4;
+        if (state.shadows.length >= shadowLimit) return { extractionAvailable: false };
+        const shadowData = [
+          { name: "Igris", icon: "⚔️", rank: "Knight Grade", color: "text-red-500", image: "https://i.pinimg.com/736x/75/75/4e/75754e943c3e5f731731bafe1886d29f.jpg", lore: "Blood-Red Commander.", stats: { power: 85, speed: 90 } },
+          { name: "Tank", icon: "🐻", rank: "Elite Grade", color: "text-gray-400", image: "https://wallpaper.forfun.com/fetch/18/181033249133ab07f9c56ff5a00050fd.jpeg", lore: "Leader of Ice Bears.", stats: { power: 95, speed: 40 } },
+          { name: "Iron", icon: "🛡️", rank: "Knight Grade", color: "text-blue-400", image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTIs-EBSTj9z-8Lv2RLUGogueA5XfEpEXC5Ig&s", lore: "Indestructible guardian.", stats: { power: 80, speed: 50 } },
+          { name: "Kaisel", icon: "🐉", rank: "Knight Grade", color: "text-purple-500", image: "https://wallpapercave.com/wp/wp11243687.jpg", lore: "The Wyvern Lord.", stats: { power: 75, speed: 100 } }
+        ];
+        const available = shadowData.filter(s => !state.shadows.find(existing => existing.name === s.name));
+        if (available.length === 0) return { extractionAvailable: false };
         systemSounds.levelUp(); 
-        if (state.shadows.find(s => s.name === randomShadow)) return { extractionAvailable: false };
-        const newShadow = { name: randomShadow, bonus: { strength: 2, agility: 2 }, rank: "Knight" };
-        return { shadows: [...state.shadows, newShadow], stats: { ...state.stats, strength: state.stats.strength + 2, agility: state.stats.agility + 2 }, extractionAvailable: false };
+        return { shadows: [...state.shadows, available[0]], extractionAvailable: false, stats: { ...state.stats, strength: state.stats.strength + 3 } };
       }),
 
-      increaseStat: (statName) => {
+      attackBoss: () => set((state) => {
         systemSounds.click();
-        set((state) => {
-          if (state.abilityPoints > 0) {
-            const newStats = { ...state.stats, [statName]: state.stats[statName] + 1 };
-            return { abilityPoints: state.abilityPoints - 1, stats: newStats };
-          }
-          return state;
-        });
-        get().checkAchievements();
-      },
-
-      toggleEquip: (item) => {
-        systemSounds.click();
-        set((state) => {
-          const type = item.category;
-          if (state.equippedItems[type]?.id === item.id) return { equippedItems: { ...state.equippedItems, [type]: null } };
-          return { equippedItems: { ...state.equippedItems, [type]: item } };
-        });
-      },
-
-      attackBoss: () => {
-        systemSounds.click();
-        set((state) => {
-          const weaponBonus = state.equippedItems.weapon ? state.equippedItems.weapon.bonus : 0;
-          const damage = (state.stats.strength + weaponBonus) + (state.shadows.length * 2);
-          const newHealth = Math.max(0, state.bossHealth - damage);
-          if (newHealth === 0) {
-            setTimeout(() => {
-              systemSounds.levelUp();
-              const ranks = ["E", "D", "C", "B", "A", "S"];
-              const currentIdx = ranks.indexOf(state.rank);
-              const nextRank = ranks[currentIdx + 1] || "S";
-              set({ bossActive: false, rank: nextRank, gold: state.gold + 5000 });
-            }, 500);
-          }
-          return { bossHealth: newHealth };
-        });
-      },
-
-      addLog: (entry) => set((state) => ({ logs: [{ id: Date.now(), text: entry, date: new Date().toLocaleTimeString() }, ...state.logs].slice(0, 10) })),
-
-      checkAchievements: () => set((state) => {
-        const updatedAchievements = state.achievements.map(ach => {
-          if (ach.completed) return ach;
-          let isNowComplete = false;
-          if (ach.id === 'a1' && state.logs.filter(l => l.text.includes('Cleared')).length >= ach.target) isNowComplete = true;
-          if (ach.stat && state.stats[ach.stat] >= ach.target) isNowComplete = true;
-          if (isNowComplete) {
-            systemSounds.levelUp();
-            if (ach.reward.gold) state.gold += ach.reward.gold;
-            if (ach.reward.points) state.abilityPoints += ach.reward.points;
-            return { ...ach, completed: true };
-          }
-          return ach;
-        });
-        return { achievements: updatedAchievements };
+        const damage = state.stats.strength + (state.shadows.length * 2);
+        const newHealth = Math.max(0, state.bossHealth - damage);
+        if (newHealth === 0) {
+          const ranks = ["E", "D", "C", "B", "A", "S"];
+          set({ bossActive: false, rank: ranks[ranks.indexOf(state.rank) + 1] || "S", gold: state.gold + 5000 });
+        }
+        return { bossHealth: newHealth };
       }),
+
+      claimDailyReward: () => {
+        const state = get();
+        const today = new Date().toISOString().split('T')[0];
+        if (state.lastRewardClaimedDate === today) return { success: false };
+        systemSounds.levelUp();
+        state.resetQuests();
+        set({ gold: state.gold + 500, lastRewardClaimedDate: today, inventory: [...state.inventory, { id: Date.now(), name: 'Strength Elixir', category: 'consumable' }] });
+        return { success: true };
+      },
+
+      buyItem: (item) => {
+        const state = get();
+        if (state.gold >= item.price) {
+          systemSounds.questComplete();
+          set({ 
+            gold: state.gold - item.price, 
+            inventory: [...state.inventory, { ...item, id: Date.now() }] 
+          });
+          state.addLog(`Purchased: [${item.name}]`);
+        }
+      },
+
+      useItem: (id) => {
+        const state = get();
+        const item = state.inventory.find(i => i.id === id);
+        if (!item) return;
+
+        if (item.category === 'consumable') {
+          systemSounds.levelUp();
+          set({ 
+            stats: { ...state.stats, strength: state.stats.strength + 1 },
+            inventory: state.inventory.filter(i => i.id !== id) 
+          });
+          state.addLog(`Used: [${item.name}]. STR +1.`);
+        } else {
+          // Equip Logic
+          systemSounds.click();
+          const category = item.category; // weapon or armor
+          const currentEquipped = state.equippedItems[category];
+          
+          set({
+            equippedItems: {
+              ...state.equippedItems,
+              [category]: currentEquipped?.id === item.id ? null : item
+            }
+          });
+        }
+      },
 
       enterDungeon: (type) => {
-        systemSounds.click();
-        const dungeons = { 'Instant': { time: 60, exp: 100, gold: 500, type: 'Instant' }, 'Red': { time: 1500, exp: 500, gold: 2000, type: 'Red' } };
-        set({ inDungeon: true, dungeonTimer: dungeons[type].time, activeDungeon: dungeons[type] });
+        const dungeonData = { 
+          'Instant': { time: 60, exp: 100, gold: 500, type: 'Instant' }, 
+          'Red': { time: 1500, exp: 500, gold: 2000, type: 'Red' } 
+        };
+        set({ inDungeon: true, dungeonTimer: dungeonData[type].time, activeDungeon: dungeonData[type] });
       },
 
       completeDungeon: () => {
         const state = get();
-        if (state.activeDungeon) {
-          systemSounds.questComplete();
-          state.gainExp(state.activeDungeon.exp);
-          state.addLog(`Cleared ${state.activeDungeon.type} Gate`);
-          set({ gold: state.gold + state.activeDungeon.gold, inDungeon: false, activeDungeon: null, dungeonTimer: 0, extractionAvailable: state.activeDungeon.type === 'Red' });
-          state.checkAchievements();
-        }
+        systemSounds.questComplete();
+        state.gainExp(state.activeDungeon?.exp || 100);
+        set({ inDungeon: false, activeDungeon: null, extractionAvailable: true });
       },
 
-      buyItem: (item) => {
-        if (get().gold >= item.price) systemSounds.questComplete();
-        set((state) => {
-          if (state.gold >= item.price) return { gold: state.gold - item.price, inventory: [...state.inventory, { ...item, id: Date.now() }] };
-          return state;
-        });
-      },
-
-      useItem: (itemId) => {
-        systemSounds.click();
-        set((state) => {
-          const item = state.inventory.find(i => i.id === itemId);
-          if (!item) return state;
-          if (item.category === 'weapon' || item.category === 'armor') { get().toggleEquip(item); return state; }
-          if (item.name === 'Strength Elixir') return { stats: { ...state.stats, strength: state.stats.strength + 1 }, inventory: state.inventory.filter(i => i.id !== itemId) };
-          return { inventory: state.inventory.filter(i => i.id !== itemId) };
-        });
-      },
-
-      changeJob: (newJob) => {
-        systemSounds.levelUp();
-        let jobSkills = [];
-        if (newJob === 'Necromancer') jobSkills = [{ name: 'Arise', desc: 'Extract shadows' }];
-        if (newJob === 'Assassin') jobSkills = [{ name: 'Stealth', desc: 'Become invisible' }];
-        if (newJob === 'Fighter') jobSkills = [{ name: 'Bloodlust', desc: 'Buff strength' }];
-        set({ job: newJob, skills: jobSkills });
-      },
-
-      resetQuests: () => set((state) => ({ quests: state.quests.map(q => ({ ...q, completed: false })) })),
-
+      drinkWater: () => set((s) => ({ waterGlassCount: s.waterGlassCount + 1, mana: Math.min(s.mana + 20, s.maxMana) })),
+      enterRestMode: () => set({ isResting: true, restStartTime: Date.now() }),
+      wakeUp: () => set({ isResting: false, fatigue: 0, mana: get().maxMana }),
+      reportMorning: () => { systemSounds.levelUp(); set({ hasReportedMorning: true }); },
+      setWakeUpTime: (time) => set({ wakeUpTime: time }),
+      increaseStat: (name) => set((s) => ({ stats: { ...s.stats, [name]: s.stats[name] + 1 }, abilityPoints: s.abilityPoints - 1 })),
+      addLog: (text) => set((s) => ({ logs: [{ id: Date.now(), text, date: new Date().toLocaleTimeString() }, ...s.logs].slice(0, 10) })),
       tick: () => set((state) => {
         let update = {};
         if (state.timeLeft > 0) update.timeLeft = state.timeLeft - 1;
         if (state.inDungeon && state.dungeonTimer > 0) {
           update.dungeonTimer = state.dungeonTimer - 1;
-          if (update.dungeonTimer === 0) { setTimeout(() => get().completeDungeon(), 100); }
+          if (update.dungeonTimer === 0) setTimeout(() => get().completeDungeon(), 100);
         }
         return update;
-      }),
-
-      exitPenalty: () => set({ penaltyActive: false, timeLeft: 24 * 60 * 60 })
+      })
     }),
     { name: 'hunter-storage' }
   )

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useHunterStore } from './store/useHunterStore'
 import { motion, AnimatePresence } from 'framer-motion'
-import { systemSounds } from './utils/sounds' // Added this import
+import { systemSounds } from './utils/sounds'
 
 // Component Imports
 import StatusPanel from './components/StatusPanel'
@@ -13,17 +13,28 @@ import BossBattle from './components/BossBattle'
 import LogPanel from './components/LogPanel'
 import HunterLicense from './components/HunterLicense'
 import DailyRewardModal from './components/DailyRewardModal'
+import RestMode from './components/RestMode'
+import MorningReport from './components/MorningReport'
+import SystemSplash from './components/SystemSplash'
+import VitalitySync from './components/VitalitySync' 
+import Registration from './components/Registration'
+import JobTrialOverlay from './components/JobTrialOverlay' // Add this import
 
 function App() {
   const [showShop, setShowShop] = useState(false);
   const [showLicense, setShowLicense] = useState(false);
+  const [isBooting, setIsBooting] = useState(true);
   
   const { 
     timeLeft, tick, gold, secretQuest, 
-    completeSecretQuest, extractionAvailable, extractShadow 
+    completeSecretQuest, extractionAvailable, extractShadow,
+    playerName, isAwakened, level // Added level
   } = useHunterStore();
 
   useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
     const timer = setInterval(() => tick(), 1000);
     return () => clearInterval(timer);
   }, [tick]);
@@ -36,97 +47,90 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-hunter-dark flex flex-col items-center py-10 font-system text-white px-4 overflow-x-hidden relative">
+    // Dynamic Background Color based on Awakening
+    <div className={`min-h-screen transition-colors duration-1000 flex flex-col items-center py-10 font-system text-white px-4 overflow-x-hidden relative ${isAwakened ? 'bg-[#0a0212]' : 'bg-hunter-dark'}`}>
       
-      {/* 1. Global Overlays (Highest Z-Index) */}
-      <DailyRewardModal />
-      <PenaltyOverlay />
-      <BossBattle />
-      <HunterLicense isOpen={showLicense} onClose={() => setShowLicense(false)} />
-      
+      {/* 1. System Boot Sequence */}
       <AnimatePresence>
-        {showShop && <StoreOverlay isOpen={showShop} onClose={() => setShowShop(false)} />}
+        {isBooting && (
+          <SystemSplash onComplete={() => setIsBooting(false)} />
+        )}
       </AnimatePresence>
 
-      {/* 2. Secret Notification Popups */}
-      <AnimatePresence>
-        {secretQuest && !secretQuest.completed && (
-          <motion.div 
-            initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} 
-            className="fixed bottom-10 z-50 w-full max-w-xs bg-orange-600 border-2 border-white p-4 shadow-2xl"
-          >
-             <h4 className="text-[10px] font-bold tracking-widest text-white mb-1 uppercase underline italic">! Warning: Secret Quest !</h4>
-             <p className="text-xs mb-3 italic">{secretQuest.title}</p>
-             <button 
-                onClick={() => { completeSecretQuest(); systemSounds.levelUp(); }} 
-                className="w-full bg-white text-orange-600 font-black py-1 text-[10px] uppercase hover:bg-gray-200 transition-colors"
+      {/* 2. Registration Overlay */}
+      {!isBooting && !playerName && <Registration />}
+
+      {/* 3. Job Trial Overlay (Shows at Level 40 if not awakened) */}
+      {!isBooting && level >= 40 && !isAwakened && <JobTrialOverlay />}
+
+      {/* 4. Main System Interface */}
+      {!isBooting && (
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}
+          className="w-full flex flex-col items-center"
+        >
+          {/* Global Overlays */}
+          <RestMode /> 
+          <MorningReport />
+          <DailyRewardModal />
+          <PenaltyOverlay />
+          <BossBattle />
+          <HunterLicense isOpen={showLicense} onClose={() => setShowLicense(false)} />
+          
+          <AnimatePresence>
+            {showShop && <StoreOverlay isOpen={showShop} onClose={() => setShowShop(false)} />}
+          </AnimatePresence>
+
+          {/* Secret Notification Popups */}
+          <AnimatePresence>
+            {secretQuest && !secretQuest.completed && (
+              <motion.div 
+                initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }} 
+                className="fixed bottom-10 z-50 w-full max-w-xs bg-orange-600 border-2 border-white p-4 shadow-[0_0_20px_rgba(234,88,12,0.5)]"
               >
-                Accept Reward
-              </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  <h4 className="text-[10px] font-bold tracking-widest text-white mb-1 uppercase underline italic">! Warning: Secret Quest !</h4>
+                  <p className="text-xs mb-3 italic">{secretQuest.title}</p>
+                  <button onClick={() => { completeSecretQuest(); systemSounds.levelUp(); }} className="w-full bg-white text-orange-600 font-black py-1 text-[10px] uppercase hover:bg-gray-200 transition-colors">Accept Reward</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      {/* 3. Consolidated Main Header */}
-      <div className="w-full max-w-md flex justify-between items-center mb-6 px-1">
-         <button 
-           onClick={() => { setShowLicense(true); systemSounds.click(); }} 
-           className="border border-white/20 px-3 py-1 text-[9px] text-gray-400 hover:text-white hover:border-white transition-all uppercase tracking-widest"
-         >
-            License
-         </button>
+          {/* Consolidated Main Header */}
+          <div className="w-full max-w-md flex justify-between items-center mb-6 px-1 relative z-10">
+             <button onClick={() => { setShowLicense(true); systemSounds.click(); }} className="border border-white/20 px-3 py-1 text-[9px] text-gray-400 hover:text-white hover:border-white transition-all uppercase tracking-widest">License</button>
+             <div className="text-center">
+                <p className="text-[7px] text-gray-500 tracking-[0.4em] uppercase mb-0.5 font-bold">System Time</p>
+                <p className={`text-sm font-bold tracking-widest font-mono ${isAwakened ? 'text-purple-500 drop-shadow-[0_0_5px_#a855f7]' : 'text-orange-500 drop-shadow-[0_0_5px_rgba(249,115,22,0.4)]'}`}>
+                   {formatTime(timeLeft)}
+                </p>
+             </div>
+             <button onClick={() => { setShowShop(true); systemSounds.click(); }} className={`border px-3 py-1 text-[9px] transition-all uppercase tracking-widest font-bold ${isAwakened ? 'border-purple-500 text-purple-400 bg-purple-900/10' : 'border-hunter-blue text-hunter-blue bg-blue-500/10'}`}>Store [{gold}G]</button>
+          </div>
 
-         <div className="text-center">
-            <p className="text-[7px] text-gray-500 tracking-[0.4em] uppercase mb-0.5 font-bold">Mana Recharge</p>
-            <p className="text-orange-500 text-sm font-bold tracking-widest font-mono drop-shadow-[0_0_5px_rgba(249,115,22,0.4)]">
-               {formatTime(timeLeft)}
-            </p>
-         </div>
+          {/* Core Content Panels */}
+          <div className="w-full max-w-md space-y-6 relative z-10">
+            <VitalitySync />
+            <StatusPanel />
+            <DungeonPanel />
+            <QuestPanel />
+            <LogPanel />
+          </div>
 
-         <button 
-           onClick={() => { setShowShop(true); systemSounds.click(); }} 
-           className="border border-hunter-blue px-3 py-1 text-[9px] text-hunter-blue bg-blue-500/10 hover:bg-hunter-blue hover:text-black transition-all uppercase tracking-widest font-bold"
-         >
-            Store [{gold}G]
-         </button>
-      </div>
+          {/* Shadow Extraction Overlay (Arise) */}
+          <AnimatePresence>
+            {extractionAvailable && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 z-[200] flex flex-col items-center justify-center p-6 text-center">
+                <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(88,28,135,0.4)_0%,transparent_70%)] animate-pulse" />
+                <motion.h2 animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.05, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="text-5xl font-black text-purple-500 tracking-[0.3em] mb-4 italic drop-shadow-[0_0_15px_rgba(168,85,247,0.8)]">ARISE</motion.h2>
+                <p className="text-[10px] text-purple-300 mb-8 max-w-xs uppercase tracking-[0.5em] font-bold">A soul lingers from the Gate... Extract?</p>
+                <button onClick={extractShadow} className="relative z-10 px-12 py-4 bg-transparent border-2 border-purple-500 text-purple-500 font-black tracking-[0.4em] hover:bg-purple-500 hover:text-black transition-all uppercase shadow-[0_0_30px_rgba(168,85,247,0.3)]">Extract Shadow</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      {/* 4. Core Content Panels */}
-      <StatusPanel />
-      <DungeonPanel />
-      <QuestPanel />
-      <LogPanel />
-
-      {/* 5. Shadow Extraction Overlay (Arise) */}
-      <AnimatePresence>
-        {extractionAvailable && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="fixed inset-0 bg-purple-950/90 z-[60] flex flex-col items-center justify-center p-6 text-center"
-          >
-            <motion.h2 
-              animate={{ scale: [1, 1.05, 1] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-              className="text-4xl font-black text-white tracking-[0.2em] mb-4"
-            >
-              VOICE RECORDED: "ARISE"
-            </motion.h2>
-            <p className="text-xs text-purple-200 mb-8 max-w-xs uppercase tracking-widest">
-              A soul lingers from the Red Gate. Extract its shadow?
-            </p>
-            <button 
-              onClick={extractShadow}
-              className="px-10 py-4 bg-white text-purple-950 font-black tracking-widest hover:scale-105 transition-transform uppercase shadow-[0_0_20px_rgba(255,255,255,0.4)]"
-            >
-              Extract Shadow
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <p className="mt-8 text-[8px] text-gray-700 tracking-[0.4em] uppercase text-center opacity-40">
-        Only the one who challenges themselves can level up.
-      </p>
+          <p className="mt-8 text-[8px] text-gray-700 tracking-[0.4em] uppercase text-center opacity-40">The system only rewards the persistent.</p>
+        </motion.div>
+      )}
     </div>
   );
 }

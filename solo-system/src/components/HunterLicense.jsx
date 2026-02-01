@@ -2,10 +2,19 @@ import { motion } from 'framer-motion';
 import { useHunterStore } from '../store/useHunterStore';
 
 export default function HunterLicense({ isOpen, onClose }) {
-  // Added getPowerMultiplier to the destructuring list
-  const { rank, level, job, currentTitle, joinDate, shadows, stats, currentStreak, getPowerMultiplier } = useHunterStore();
-
+  const state = useHunterStore(); // Use whole state for function stability
+  
   if (!isOpen) return null;
+
+  const { rank, level, job, currentTitle, joinDate, shadows, stats, currentStreak, playerName } = state;
+
+  // Safe call for the multiplier
+  const multiplier = typeof state.getPowerMultiplier === 'function' 
+    ? state.getPowerMultiplier() 
+    : 1.0;
+
+  // Combat Power Logic: (STR * 10 + Level * 5 + Streak * 2) * Job Multiplier
+  const combatPower = Math.floor((stats.strength * 10 + level * 5 + (currentStreak * 2)) * multiplier);
 
   return (
     <motion.div 
@@ -27,7 +36,7 @@ export default function HunterLicense({ isOpen, onClose }) {
             </div>
 
             <div className="flex-1 flex flex-col justify-center">
-               <h2 className="text-xl font-bold tracking-tighter italic leading-none mb-1 text-white uppercase">Prajwal Hiremath</h2>
+               <h2 className="text-xl font-bold tracking-tighter italic leading-none mb-1 text-white uppercase">{playerName || "Syncing Identity..."}</h2>
                <p className="text-[10px] text-hunter-blue uppercase tracking-widest mb-2 font-bold">{currentTitle !== "None" ? currentTitle : 'Newbie Hunter'}</p>
                <div className="h-[1px] bg-white/10 w-full mb-2" />
                <p className="text-[9px] text-gray-500 uppercase tracking-tighter mb-1">Registration: {joinDate}</p>
@@ -45,7 +54,7 @@ export default function HunterLicense({ isOpen, onClose }) {
             </div>
             <div>
               <p className="text-[8px] text-gray-500 uppercase font-bold">Class</p>
-              <p className="text-lg font-bold text-hunter-blue truncate uppercase tracking-tighter">{job}</p>
+              <p className="text-lg font-bold text-hunter-blue truncate uppercase tracking-tighter">{job === "None" ? "E-RANK" : job}</p>
             </div>
           </div>
 
@@ -57,14 +66,14 @@ export default function HunterLicense({ isOpen, onClose }) {
             <div className="flex justify-between text-[9px] uppercase tracking-widest text-gray-400">
                <span>Combat Power</span>
                <span className="text-hunter-blue font-black text-sm">
-                 {Math.floor((stats.strength * 10 + level * 5 + (currentStreak * 2)) * getPowerMultiplier())}
+                 {combatPower}
                </span>
             </div>
           </div>
         </div>
 
         <div className="p-4 bg-black/40 text-center border-t border-white/5">
-           <p className="text-[7px] text-gray-600 uppercase tracking-[0.5em] animate-pulse italic">Authenticity Verified by System</p>
+            <p className="text-[7px] text-gray-600 uppercase tracking-[0.5em] animate-pulse italic">Authenticity Verified by System</p>
         </div>
       </div>
     </motion.div>
