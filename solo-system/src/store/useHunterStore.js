@@ -1,8 +1,24 @@
 /* eslint-disable no-unused-vars */
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware' // Added createJSONStorage
 import { systemSounds } from '../utils/sounds'
 import { systemNotifications } from '../utils/notifications';
+import { Preferences } from '@capacitor/preferences'; // Added for Mobile Persistence
+
+// --- MOBILE STORAGE ADAPTER ---
+// This replaces localStorage to prevent the phone OS from wiping your save data.
+const capacitorStorage = {
+  getItem: async (name) => {
+    const { value } = await Preferences.get({ key: name });
+    return value ? JSON.parse(value) : null;
+  },
+  setItem: async (name, value) => {
+    await Preferences.set({ key: name, value: JSON.stringify(value) });
+  },
+  removeItem: async (name) => {
+    await Preferences.remove({ key: name });
+  },
+};
 
 export const useHunterStore = create(
   persist(
@@ -202,9 +218,8 @@ export const useHunterStore = create(
           });
           state.addLog(`Used: [${item.name}]. STR +1.`);
         } else {
-          // Equip Logic
           systemSounds.click();
-          const category = item.category; // weapon or armor
+          const category = item.category;
           const currentEquipped = state.equippedItems[category];
           
           set({
@@ -248,6 +263,9 @@ export const useHunterStore = create(
         return update;
       })
     }),
-    { name: 'hunter-storage' }
+    { 
+      name: 'hunter-storage',
+      storage: createJSONStorage(() => capacitorStorage) // Critical: Mobile Storage Hook
+    }
   )
 )

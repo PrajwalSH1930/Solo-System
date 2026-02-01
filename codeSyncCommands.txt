@@ -1,0 +1,8 @@
+# 1. Build your latest React code
+npm run build
+
+# 2. Copy the build to Android
+npx cap copy android
+
+# 3. Update the native plugins (like Preferences and Sounds)
+npx cap update android
