@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useHunterStore } from './store/useHunterStore'
 import { motion, AnimatePresence } from 'framer-motion'
 import { systemSounds } from './utils/sounds'
+import { setupAlarmSystem, checkAlarmPermissions, scheduleWakeUpAlarm } from './utils/notifications'
 
 // Component Imports
 import StatusPanel from './components/StatusPanel'
@@ -18,26 +19,63 @@ import MorningReport from './components/MorningReport'
 import SystemSplash from './components/SystemSplash'
 import VitalitySync from './components/VitalitySync' 
 import Registration from './components/Registration'
-import JobTrialOverlay from './components/JobTrialOverlay' // Add this import
+import JobTrialOverlay from './components/JobTrialOverlay'
+import LevelUpOverlay from './components/LevelUpOverlay'
 
 function App() {
   const [showShop, setShowShop] = useState(false);
   const [showLicense, setShowLicense] = useState(false);
   const [isBooting, setIsBooting] = useState(true);
+  const [showLevelUp, setShowLevelUp] = useState(false);
   
   const { 
     timeLeft, tick, gold, secretQuest, 
     completeSecretQuest, extractionAvailable, extractShadow,
-    playerName, isAwakened, level // Added level
+    playerName, isAwakened, level,
+    wakeUpTime 
   } = useHunterStore();
 
+  // Unified Refs for Initialization and Level Tracking
+  const isReady = useRef(false);
+  const prevLevelRef = useRef(0);
+
+  // 1. Unified System Initialization
   useEffect(() => {
+    const initializeSystem = async () => {
+      await setupAlarmSystem();
+      await checkAlarmPermissions();
+      if (wakeUpTime) {
+        await scheduleWakeUpAlarm(wakeUpTime);
+      }
+    };
+
+    initializeSystem();
+
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
+
     const timer = setInterval(() => tick(), 1000);
     return () => clearInterval(timer);
-  }, [tick]);
+  }, [tick, wakeUpTime]);
+
+  // 2. Level Up Trigger Logic (Fixed to prevent startup trigger)
+  useEffect(() => {
+    // Wait for the store to load its real data
+    if (level > 0 && !isReady.current) {
+      prevLevelRef.current = level;
+      isReady.current = true;
+      return;
+    }
+
+    // Trigger only if system is ready AND level increased
+    if (isReady.current && level > prevLevelRef.current) {
+      setShowLevelUp(true);
+      systemSounds.levelUp();
+    }
+    
+    prevLevelRef.current = level;
+  }, [level]);
 
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600);
@@ -47,29 +85,28 @@ function App() {
   };
 
   return (
-    // Dynamic Background Color based on Awakening
-    <div className={`min-h-screen transition-colors duration-1000 flex flex-col items-center py-10 font-system text-white px-4 overflow-x-hidden relative ${isAwakened ? 'bg-[#0a0212]' : 'bg-hunter-dark'}`}>
+    <div className={`min-h-screen transition-colors duration-1000 flex flex-col items-center py-10 font-system text-white px-4 overflow-x-hidden relative ${isAwakened ? 'bg-[#000000] shadow-[inset_0_0_100px_rgba(168,85,247,0.15)]' : 'bg-[#000000]'}`}>
       
-      {/* 1. System Boot Sequence */}
+      <LevelUpOverlay 
+        level={level} 
+        visible={showLevelUp} 
+        onComplete={() => setShowLevelUp(false)} 
+      />
+
       <AnimatePresence>
         {isBooting && (
           <SystemSplash onComplete={() => setIsBooting(false)} />
         )}
       </AnimatePresence>
 
-      {/* 2. Registration Overlay */}
       {!isBooting && !playerName && <Registration />}
-
-      {/* 3. Job Trial Overlay (Shows at Level 40 if not awakened) */}
       {!isBooting && level >= 40 && !isAwakened && <JobTrialOverlay />}
 
-      {/* 4. Main System Interface */}
       {!isBooting && (
         <motion.div 
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}
           className="w-full flex flex-col items-center"
         >
-          {/* Global Overlays */}
           <RestMode /> 
           <MorningReport />
           <DailyRewardModal />
@@ -81,7 +118,6 @@ function App() {
             {showShop && <StoreOverlay isOpen={showShop} onClose={() => setShowShop(false)} />}
           </AnimatePresence>
 
-          {/* Secret Notification Popups */}
           <AnimatePresence>
             {secretQuest && !secretQuest.completed && (
               <motion.div 
@@ -95,7 +131,6 @@ function App() {
             )}
           </AnimatePresence>
 
-          {/* Consolidated Main Header */}
           <div className="w-full max-w-md flex justify-between items-center mb-6 px-1 relative z-10">
              <button onClick={() => { setShowLicense(true); systemSounds.click(); }} className="border border-white/20 px-3 py-1 text-[9px] text-gray-400 hover:text-white hover:border-white transition-all uppercase tracking-widest">License</button>
              <div className="text-center">
@@ -107,7 +142,6 @@ function App() {
              <button onClick={() => { setShowShop(true); systemSounds.click(); }} className={`border px-3 py-1 text-[9px] transition-all uppercase tracking-widest font-bold ${isAwakened ? 'border-purple-500 text-purple-400 bg-purple-900/10' : 'border-hunter-blue text-hunter-blue bg-blue-500/10'}`}>Store [{gold}G]</button>
           </div>
 
-          {/* Core Content Panels */}
           <div className="w-full max-w-md space-y-6 relative z-10">
             <VitalitySync />
             <StatusPanel />
@@ -116,7 +150,6 @@ function App() {
             <LogPanel />
           </div>
 
-          {/* Shadow Extraction Overlay (Arise) */}
           <AnimatePresence>
             {extractionAvailable && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 z-[200] flex flex-col items-center justify-center p-6 text-center">

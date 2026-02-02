@@ -1,6 +1,6 @@
 {
-  "appId": "com.example.app",
-  "appName": "solo-system",
+  "appId": "com.prajwal.solosystem",
+  "appName": "Solo System",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

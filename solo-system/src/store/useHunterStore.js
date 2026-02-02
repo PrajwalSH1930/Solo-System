@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware' // Added createJ
 import { systemSounds } from '../utils/sounds'
 import { systemNotifications } from '../utils/notifications';
 import { Preferences } from '@capacitor/preferences'; // Added for Mobile Persistence
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 // --- MOBILE STORAGE ADAPTER ---
 // This replaces localStorage to prevent the phone OS from wiping your save data.
@@ -19,6 +20,43 @@ const capacitorStorage = {
     await Preferences.remove({ key: name });
   },
 };
+
+export const scheduleWakeUpAlarm = async (timeString) => {
+  // timeString format: "06:00"
+  const [hours, minutes] = timeString.split(':').map(Number);
+  
+  const now = new Date();
+  const scheduleDate = new Date();
+  scheduleDate.setHours(hours, minutes, 0, 0);
+
+  // If the time already passed today, schedule for tomorrow
+  if (scheduleDate <= now) {
+    scheduleDate.setDate(scheduleDate.getDate() + 1);
+  }
+
+  // Cancel existing alarms first to avoid duplicates
+  await LocalNotifications.cancel({ notifications: [{ id: 100 }] });
+
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        title: "🚨 SYSTEM INITIALIZED",
+        body: "Time to wake up, Hunter. Your daily quests have been reset.",
+        id: 100,
+        schedule: { 
+            at: scheduleDate, 
+            allowWhileIdle: true, // Crucial for background running
+            repeats: true,
+            every: 'day'
+        },
+        channelId: 'system-alarm',
+        smallIcon: 'ic_stat_name', // We will set this when we fix the icon
+        sound: 'alarm_sound.mp3',
+      }
+    ]
+  });
+};
+
 
 export const useHunterStore = create(
   persist(
