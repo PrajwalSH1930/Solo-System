@@ -1,160 +1,155 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useHunterStore } from '../store/useHunterStore';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function VitalitySync() {
-  // Pulling from the unified store (Health + Player slices)
-  const { 
-    totalStepsToday, 
-    syncHealthData, 
-    lastSyncTimestamp, 
-    isAwakened, 
-    showXPPop 
-  } = useHunterStore();
-
+  const { totalStepsToday, syncHealthData, lastSyncTimestamp, isAwakened, showXPPop } = useHunterStore();
   const [isSyncing, setIsSyncing] = useState(false);
   
   const GOAL = 10000;
   const progress = Math.min((totalStepsToday / GOAL) * 100, 100);
   
-  // Dynamic Theme Variables
-  const themeColor = isAwakened ? "rgba(168, 85, 247, 0.6)" : "rgba(16, 185, 129, 0.6)";
+  const accentColor = isAwakened ? "rgb(168, 85, 247)" : "rgb(16, 185, 129)";
   const textColor = isAwakened ? "text-purple-400" : "text-emerald-400";
   const barColor = isAwakened ? "bg-purple-500" : "bg-emerald-500";
-  const glowShadow = isAwakened ? "shadow-[0_0_15px_rgba(168,85,247,0.4)]" : "shadow-[0_0_15px_rgba(16,185,129,0.4)]";
+  const glowShadow = isAwakened ? "shadow-[0_0_20px_rgba(168,85,247,0.5)]" : "shadow-[0_0_20px_rgba(16,185,129,0.5)]";
+
+  // Auto-sync every 60 seconds
+  useEffect(() => {
+    const interval = setInterval(() => syncHealthData(), 60000);
+    return () => clearInterval(interval);
+  }, [syncHealthData]);
 
   const handleSync = async () => {
     setIsSyncing(true);
     await syncHealthData();
-    // 1.5s delay to allow the "Updating Vessel" animation to feel weighty
     setTimeout(() => setIsSyncing(false), 1500);
   };
 
   return (
-    <div className={`w-full max-w-md relative overflow-hidden bg-black/40 border border-white/10 p-6 backdrop-blur-xl rounded-sm mb-8 group shadow-2xl`}>
-      
-      {/* ⚔️ XP FLOATING POPUP: Triggered on Milestone */}
-      <AnimatePresence>
-        {showXPPop && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.8 }}
-            animate={{ opacity: 1, y: -120, scale: 1.2 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.2, ease: "easeOut" }}
-            className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-none text-center"
-          >
-            <span className={`text-2xl font-black italic ${textColor} drop-shadow-[0_0_15px_currentColor] block`}>
-              +500 EXP
-            </span>
-            <span className="text-[8px] text-white font-black uppercase tracking-[0.3em] bg-black/80 px-2 py-0.5 rounded border border-white/10">
-              Daily Vessel Strengthened
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="w-full max-w-md relative group">
+      {/* 🔮 THE OUTER GLOW BOUNDARY */}
+      <div className={`absolute -inset-0.5 bg-gradient-to-r ${isAwakened ? 'from-purple-600 to-blue-600' : 'from-emerald-600 to-teal-600'} rounded-sm blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200`}></div>
 
-      {/* 1. TOP SECTION: DATA & STATUS */}
-      <div className="flex justify-between items-start mb-6">
-        <div className="relative">
-          <motion.h3 
-            animate={isSyncing ? { opacity: [1, 0.5, 1] } : {}}
-            transition={{ repeat: Infinity, duration: 0.8 }}
-            className={`text-[11px] ${textColor} font-black uppercase tracking-[0.4em] mb-1 italic`}
-          >
-            Vitality Link
-          </motion.h3>
-          <div className="flex items-center gap-2">
-            <div className={`w-1 h-1 rounded-full ${isSyncing ? 'animate-ping' : ''} ${barColor}`} />
-            <p className="text-[7px] text-gray-500 uppercase tracking-widest font-bold">Biometric Stream: ACTIVE</p>
+      <div className="relative bg-[#0a0a0a] border border-white/10 p-6 backdrop-blur-3xl overflow-hidden shadow-2xl">
+        
+        {/* 📟 SYSTEM OVERLAY: Scanlines */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.05] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-10 bg-[length:100%_2px,3px_100%]" />
+
+        {/* ⚔️ XP FLOATING POPUP */}
+        <AnimatePresence>
+          {showXPPop && (
+            <motion.div
+              initial={{ opacity: 0, y: 0, scale: 0.5 }}
+              animate={{ opacity: 1, y: -150, scale: 1.5 }}
+              exit={{ opacity: 0 }}
+              className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+            >
+              <span className={`text-3xl font-black italic ${textColor} drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]`}>
+                LEVEL UP +500
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 1. HEADER: TYPE & DATA */}
+        <div className="flex justify-between items-end mb-8 relative z-20">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className={`h-[1px] w-6 ${barColor}`} />
+              <motion.h3 
+                animate={isSyncing ? { opacity: [1, 0.4, 1] } : {}}
+                className={`text-[10px] ${textColor} font-black uppercase tracking-[0.5em] italic`}
+              >
+                Vessel Vitality
+              </motion.h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'animate-ping' : ''} ${barColor}`} />
+              <p className="text-[7px] text-white/40 uppercase tracking-[0.3em] font-bold font-mono">Status: Re-Calibrating</p>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <motion.div 
+              key={totalStepsToday}
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              className="text-4xl font-black italic text-white tracking-tighter tabular-nums leading-none"
+            >
+              {totalStepsToday.toLocaleString()}
+            </motion.div>
+            <p className="text-[9px] text-white/30 uppercase font-black tracking-[0.2em] mt-1">Steps Collected</p>
           </div>
         </div>
 
-        <div className="text-right">
-          <motion.div 
-            key={totalStepsToday}
-            initial={{ y: 5, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="text-3xl font-black italic text-white tracking-tighter tabular-nums"
-          >
-            {totalStepsToday.toLocaleString()}
-          </motion.div>
-          <p className="text-[8px] text-gray-600 uppercase font-black tracking-[0.2em]">Physical Steps</p>
-        </div>
-      </div>
-
-      {/* 2. CENTER SECTION: THE LIQUID PROGRESS BAR */}
-      <div className="relative mb-6">
-        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden relative">
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ 
-                width: `${progress}%`,
-                backgroundColor: showXPPop ? "#fff" : undefined // Flash white on goal reach
-            }}
-            transition={{ type: "spring", stiffness: 40, damping: 20 }}
-            className={`h-full ${barColor} ${glowShadow} relative`}
-          >
-            {/* Liquid Mana Streak */}
+        {/* 2. PROGRESS SECTION: The "Mana Core" */}
+        <div className="relative mb-8 px-1">
+          <div className="flex justify-between text-[8px] mb-2 font-black uppercase tracking-widest text-white/20">
+            <span>Core Integration</span>
+            <span className={textColor}>{Math.round(progress)}%</span>
+          </div>
+          
+          <div className="w-full h-3 bg-white/[0.03] rounded-sm border border-white/5 overflow-hidden relative">
             <motion.div 
-              animate={{ x: ['-100%', '300%'] }}
-              transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-32"
-            />
-          </motion.div>
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ type: "spring", stiffness: 50, damping: 15 }}
+              className={`h-full ${barColor} ${glowShadow} relative`}
+            >
+              {/* Shimmer Effect */}
+              <motion.div 
+                animate={{ x: ['-100%', '250%'] }}
+                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent w-40"
+              />
+            </motion.div>
+            {/* Background Grid for the bar */}
+            <div className="absolute inset-0 bg-[grid:4px_4px] bg-[size:8px_8px] opacity-10 pointer-events-none" />
+          </div>
         </div>
 
-        <div className="flex justify-between mt-2 items-center">
-          <span className="text-[7px] text-gray-700 font-bold uppercase tracking-widest italic">Sync Efficiency</span>
-          <span className={`text-[9px] font-black italic ${textColor} flex items-center gap-1`}>
-            {Math.round(progress)}% <span className="text-[6px] text-gray-600 font-normal">COMPLETED</span>
-          </span>
-        </div>
-      </div>
-
-      {/* 3. INTERACTION: THE SYNC TRIGGER */}
-      <div className="relative group/btn">
+        {/* 3. ACTION: The Sync Trigger */}
         <button 
           onClick={handleSync}
           disabled={isSyncing}
-          className={`relative w-full py-4 overflow-hidden bg-white/[0.02] border border-white/10 group-hover/btn:border-${isAwakened ? 'purple' : 'emerald'}-500/50 transition-all duration-500 active:scale-[0.98]`}
+          className="relative w-full py-4 group/btn transition-all active:scale-[0.97]"
         >
-          <span className={`relative z-10 ${textColor} text-[10px] font-black uppercase tracking-[0.5em] flex justify-center items-center gap-3`}>
+          {/* Beveled corners effect */}
+          <div className={`absolute inset-0 border border-white/10 group-hover/btn:border-${isAwakened ? 'purple' : 'emerald'}-500/50 skew-x-[-12deg] bg-white/[0.02] transition-all`} />
+          
+          <span className={`relative z-10 ${textColor} text-[11px] font-black uppercase tracking-[0.6em] flex justify-center items-center gap-4`}>
             {isSyncing ? (
-              <>
-                <div className={`w-3 h-3 border-2 ${isAwakened ? 'border-purple-500' : 'border-emerald-500'} border-t-transparent rounded-full animate-spin`} />
-                Updating Vessel...
-              </>
-            ) : "Synchronize Vitality"}
+              <span className="animate-pulse">Accessing Records...</span>
+            ) : "Manual Synchronize"}
           </span>
-
-          {/* Liquid Fill Effect on Hover */}
-          <div className={`absolute inset-0 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-500 bg-gradient-to-t from-${isAwakened ? 'purple' : 'emerald'}-500/10 to-transparent`} />
+          
+          {/* Hover Glow Liquid */}
+          <div className={`absolute inset-0 opacity-0 group-hover/btn:opacity-10 transition-opacity skew-x-[-12deg] bg-${isAwakened ? 'purple' : 'emerald'}-500`} />
         </button>
+
+        {/* 4. METADATA FOOTER */}
+        <div className="mt-8 pt-4 border-t border-white/5 flex justify-between items-center relative z-20">
+          <div className="text-[7px] text-white/20 font-bold uppercase tracking-widest leading-relaxed">
+            <p>Arch: Solo-V4</p>
+            <p>Node: {isAwakened ? "MONARCH_PRIME" : "HUMAN_VESSEL"}</p>
+          </div>
+          <div className="text-right">
+             <p className="text-[7px] text-white/20 font-bold uppercase tracking-widest mb-1">Last Transmission</p>
+             <p className={`text-[9px] font-mono font-bold ${textColor}`}>
+               {lastSyncTimestamp ? new Date(lastSyncTimestamp).toLocaleTimeString() : "PENDING..."}
+             </p>
+          </div>
+        </div>
+
+        {/* Decorative HUD Flairs */}
+        <div className={`absolute top-2 right-2 w-1 h-1 ${barColor} opacity-50`} />
+        <div className={`absolute top-4 right-2 w-1 h-1 ${barColor} opacity-20`} />
       </div>
 
-      {/* 4. FOOTER: SYSTEM METADATA */}
-      <AnimatePresence>
-        {lastSyncTimestamp && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center mt-5 border-t border-white/5 pt-4 space-y-1"
-          >
-            <div className="flex items-center gap-4 text-[7px] text-gray-600 font-bold tracking-[0.2em] uppercase">
-              <span>Node: REALME-12P+</span>
-              <div className="w-[1px] h-2 bg-gray-800" />
-              <span>Freq: 2.4GHz</span>
-              <div className="w-[1px] h-2 bg-gray-800" />
-              <span>Last: {new Date(lastSyncTimestamp).toLocaleTimeString()}</span>
-            </div>
-            <p className={`text-[6px] ${textColor} opacity-20 uppercase font-black tracking-widest`}>Authorized by the Architect</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Cyberpunk Decorative Corner Accents */}
-      <div className={`absolute top-0 left-0 w-4 h-4 border-t border-l ${isAwakened ? 'border-purple-500/40' : 'border-emerald-500/40'}`} />
-      <div className={`absolute bottom-0 right-0 w-4 h-4 border-b border-r ${isAwakened ? 'border-purple-500/10' : 'border-emerald-500/10'}`} />
+      {/* ANGULAR BRACKETS */}
+      <div className={`absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 ${isAwakened ? 'border-purple-500/40' : 'border-emerald-500/40'} pointer-events-none`} />
+      <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 ${isAwakened ? 'border-purple-500/40' : 'border-emerald-500/40'} pointer-events-none`} />
     </div>
   );
 }

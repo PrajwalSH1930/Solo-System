@@ -66,6 +66,7 @@ export const createQuestSlice = (set, get) => ({
     if (quest && !quest.completed) {
       systemSounds.questComplete();
       
+      // Handle Experience gain
       if (state.addExperience) state.addExperience(quest.reward);
       else if (state.gainExp) state.gainExp(quest.reward);
 
@@ -75,8 +76,9 @@ export const createQuestSlice = (set, get) => ({
         gold: state.gold + quest.goldReward, 
         quests: updatedQuests, 
         fatigue: Math.min(state.fatigue + 10, 100),
-        // FIXED: Only trigger "Arise" if it's a Hard quest (like the 6K Walk)
-        extractionAvailable: quest.isHard ? true : false 
+        // ⚔️ FIXED: Quests (even Hard ones) no longer trigger "Arise".
+        // Only Dungeons and Bosses have souls to extract.
+        extractionAvailable: false 
       });
     }
   },
