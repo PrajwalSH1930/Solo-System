@@ -1,81 +1,150 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useHunterStore } from '../store/useHunterStore';
 
 export default function HunterLicense({ isOpen, onClose }) {
-  const state = useHunterStore(); // Use whole state for function stability
-  
+  const state = useHunterStore();
+  const { 
+    rank, level, job, currentTitle, joinDate, 
+    shadows, stats, currentStreak, playerName, isAwakened 
+  } = state;
+
   if (!isOpen) return null;
 
-  const { rank, level, job, currentTitle, joinDate, shadows, stats, currentStreak, playerName } = state;
-
-  // Safe call for the multiplier
-  const multiplier = typeof state.getPowerMultiplier === 'function' 
-    ? state.getPowerMultiplier() 
-    : 1.0;
-
-  // Combat Power Logic: (STR * 10 + Level * 5 + Streak * 2) * Job Multiplier
+  const multiplier = typeof state.getPowerMultiplier === 'function' ? state.getPowerMultiplier() : 1.0;
   const combatPower = Math.floor((stats.strength * 10 + level * 5 + (currentStreak * 2)) * multiplier);
+
+  // --- REFINED COLOR PALETTE ---
+  const colors = {
+    purple: {
+      primary: "text-[#A855F7]",
+      border: "border-[#A855F7]",
+      bg: "bg-[#A855F7]",
+      glow: "shadow-[0_0_30px_rgba(168,85,247,0.4)]",
+      gradient: "from-[#A855F7]/20 to-transparent"
+    },
+    cyan: {
+      primary: "text-[#00D4FF]",
+      border: "border-[#00D4FF]",
+      bg: "bg-[#00D4FF]",
+      glow: "shadow-[0_0_30px_rgba(0,212,255,0.4)]",
+      gradient: "from-[#00D4FF]/20 to-transparent"
+    }
+  };
+
+  const active = isAwakened ? colors.purple : colors.cyan;
 
   return (
     <motion.div 
-      initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 font-system text-white"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-black/98 backdrop-blur-2xl font-system"
     >
-      <div className="relative w-full max-w-sm border-2 border-hunter-blue bg-slate-900 overflow-hidden rounded-xl shadow-[0_0_50px_rgba(0,212,255,0.3)]">
-        
-        <div className="bg-hunter-blue h-12 flex items-center px-4 justify-between">
-          <span className="text-[10px] font-black tracking-[0.3em] text-black italic uppercase">Hunter Association</span>
-          <button onClick={onClose} className="text-black font-bold hover:scale-110 transition-transform">✕</button>
+      <motion.div 
+        initial={{ scale: 0.9, rotateY: 20 }} 
+        animate={{ scale: 1, rotateY: 0 }}
+        className={`relative w-full max-w-sm border-t-2 border-x ${active.border} bg-[#050505] overflow-hidden rounded-2xl ${active.glow}`}
+      >
+        {/* Holographic Header */}
+        <div className={`relative h-16 ${active.bg} flex items-center px-6 justify-between overflow-hidden`}>
+          {/* Animated Background Pattern for Header */}
+          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 1px, transparent 0, transparent 50%)', backgroundSize: '8px 8px' }} />
+          
+          <div className="relative z-10">
+            <span className="text-[10px] font-black tracking-[0.4em] text-black italic uppercase block leading-none">Hunter Association</span>
+            <span className="text-[7px] font-bold text-black/50 uppercase tracking-widest">Dimensional Identity Node</span>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-black/10 flex items-center justify-center text-black font-black hover:bg-black/30 z-20 transition-all">✕</button>
         </div>
 
-        <div className="p-6">
-          <div className="flex gap-4 mb-6">
-            <div className="w-24 h-24 border border-hunter-blue/50 bg-black flex items-center justify-center relative">
-               <div className="text-4xl font-black text-hunter-blue italic">{rank}</div>
-               <div className="absolute bottom-0 w-full bg-hunter-blue/20 text-[8px] text-center py-1 font-bold uppercase tracking-tighter">Rank {rank}</div>
+        <div className="p-8 relative">
+          {/* Parallax Rank Hexagon */}
+          <div className="flex gap-6 mb-8 items-center">
+            <div className="relative group">
+              <motion.div 
+                animate={{ rotate: 360 }} 
+                transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                className={`w-28 h-28 border border-dashed ${active.border} opacity-40 rounded-full absolute -inset-2`}
+              />
+              <div className={`w-24 h-24 border-2 ${active.border} bg-black flex flex-col items-center justify-center relative shadow-inner`}>
+                <span className={`text-5xl font-black italic ${active.primary} drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]`}>{rank}</span>
+                <span className={`text-[8px] font-black uppercase mt-1 tracking-widest ${active.primary} opacity-60 italic`}>Rank</span>
+              </div>
             </div>
 
-            <div className="flex-1 flex flex-col justify-center">
-               <h2 className="text-xl font-bold tracking-tighter italic leading-none mb-1 text-white uppercase">{playerName || "Syncing Identity..."}</h2>
-               <p className="text-[10px] text-hunter-blue uppercase tracking-widest mb-2 font-bold">{currentTitle !== "None" ? currentTitle : 'Newbie Hunter'}</p>
-               <div className="h-[1px] bg-white/10 w-full mb-2" />
-               <p className="text-[9px] text-gray-500 uppercase tracking-tighter mb-1">Registration: {joinDate}</p>
-               <div className="flex items-center gap-2">
-                  <p className="text-[8px] text-gray-500 uppercase font-bold">Streak:</p>
-                  <p className="text-xs font-bold text-orange-500">{currentStreak} Days</p>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter truncate drop-shadow-md">
+                {playerName || "Syncing..." }
+              </h2>
+              <div className="flex items-center gap-2 mb-3">
+                <div className={`w-1.5 h-1.5 rounded-full animate-ping ${isAwakened ? 'bg-purple-500' : 'bg-cyan-500'}`} />
+                <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${active.primary} italic`}>
+                  {currentTitle}
+                </p>
+              </div>
+              
+              <div className="bg-white/[0.03] border border-white/5 p-2 rounded-sm">
+                <p className="text-[7px] text-gray-500 uppercase font-black tracking-widest mb-1">Authenticated Since</p>
+                <p className="text-[9px] font-mono text-gray-300">{joinDate}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats & Power Grid */}
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 p-4 rounded-xl">
+                <p className="text-[8px] text-gray-600 uppercase font-black tracking-widest mb-1">Hunter Level</p>
+                <p className="text-2xl font-black text-white italic leading-none">
+                  <span className={`${active.primary} text-xs mr-1 tracking-tighter`}>LV.</span>{level}
+                </p>
+              </div>
+              <div className="bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 p-4 rounded-xl">
+                <p className="text-[8px] text-gray-600 uppercase font-black tracking-widest mb-1">Class Type</p>
+                <p className={`text-lg font-black italic uppercase tracking-tighter truncate ${active.primary}`}>
+                  {job}
+                </p>
+              </div>
+            </div>
+
+            {/* Combat Power Module */}
+            <div className={`relative p-5 border ${active.border} bg-gradient-to-r ${active.gradient} rounded-xl overflow-hidden group`}>
+               {/* Background Decorative Text */}
+               <span className={`absolute -right-2 -bottom-2 text-6xl font-black italic opacity-5 pointer-events-none ${active.primary}`}>POW</span>
+               
+               <div className="flex justify-between items-start mb-2 relative z-10">
+                 <div>
+                   <p className="text-[8px] text-gray-500 uppercase font-black tracking-[0.4em] mb-1">Current Combat Power</p>
+                   <p className={`text-4xl font-black italic tracking-tighter ${active.primary} drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]`}>
+                     {combatPower.toLocaleString()}
+                   </p>
+                 </div>
+                 <div className="text-right">
+                   <p className="text-[8px] text-gray-600 uppercase font-black tracking-widest">Legion</p>
+                   <p className="text-xs font-black text-white italic">{shadows.length} Units</p>
+                 </div>
                </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 border-y border-white/5 py-4 mb-6">
-            <div>
-              <p className="text-[8px] text-gray-500 uppercase font-bold">Level</p>
-              <p className="text-lg font-bold">{level}</p>
-            </div>
-            <div>
-              <p className="text-[8px] text-gray-500 uppercase font-bold">Class</p>
-              <p className="text-lg font-bold text-hunter-blue truncate uppercase tracking-tighter">{job === "None" ? "E-RANK" : job}</p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex justify-between text-[9px] uppercase tracking-widest text-gray-400">
-               <span>Shadow Soldiers</span>
-               <span className="font-bold text-white">{shadows.length} Units</span>
-            </div>
-            <div className="flex justify-between text-[9px] uppercase tracking-widest text-gray-400">
-               <span>Combat Power</span>
-               <span className="text-hunter-blue font-black text-sm">
-                 {combatPower}
-               </span>
+               
+               <div className="w-full h-[2px] bg-black/40 rounded-full mt-3 overflow-hidden">
+                 <motion.div 
+                   initial={{ width: 0 }} animate={{ width: `${(currentStreak / 30) * 100}%` }}
+                   className={`h-full ${active.bg}`}
+                 />
+               </div>
+               <p className="text-[7px] text-gray-600 uppercase mt-2 italic font-bold tracking-widest">Streak Bonus Applied: +{(currentStreak * 2)} Points</p>
             </div>
           </div>
         </div>
 
-        <div className="p-4 bg-black/40 text-center border-t border-white/5">
-            <p className="text-[7px] text-gray-600 uppercase tracking-[0.5em] animate-pulse italic">Authenticity Verified by System</p>
+        {/* Association Footer */}
+        <div className="bg-black py-4 px-8 border-t border-white/5 flex justify-between items-center relative">
+          <div className="flex flex-col">
+            <p className="text-[8px] text-white font-black uppercase italic tracking-widest">Hunter ID: {playerName?.substring(0,3)}-{level}-2026</p>
+            <p className="text-[6px] text-gray-700 uppercase tracking-widest mt-0.5">Association Seal Encrypted</p>
+          </div>
+          <div className={`w-10 h-10 border ${active.border} rotate-45 flex items-center justify-center opacity-30`}>
+             <div className={`w-6 h-6 border ${active.border}`} />
+          </div>
         </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }
