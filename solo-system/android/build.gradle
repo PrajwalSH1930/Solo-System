@@ -1,13 +1,13 @@
 buildscript {
     repositories {
         google()
-        mavenCentral()
+        mavenCentral() // <--- Fix it to Central
     }
     dependencies {
-        // CHANGE THIS LINE BELOW:
-        classpath 'com.android.tools.build:gradle:8.4.2' 
-        
-        classpath 'com.google.gms:google-services:4.4.4'
+        // High-level Gradle plugin
+        classpath 'com.android.tools.build:gradle:8.4.2'
+        // Standard Google Services
+        classpath 'com.google.gms:google-services:4.4.2'
     }
 }
 
@@ -24,7 +24,7 @@ task clean(type: Delete) {
     delete rootProject.buildDir
 }
 
-// Force all sub-modules (like capacitor-android) to use Java 17
+// Global Java 17 Enforcement
 subprojects {
     afterEvaluate { project ->
         if (project.hasProperty('android')) {

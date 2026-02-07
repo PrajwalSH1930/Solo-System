@@ -5,6 +5,7 @@ import { systemSounds } from './utils/sounds'
 import { setupAlarmSystem, checkAlarmPermissions, scheduleWakeUpAlarm } from './utils/notifications'
 import { Motion } from '@capacitor/motion'
 import { Capacitor } from '@capacitor/core'
+import { App as CapApp } from '@capacitor/app'; // Import the App plugin
 
 // Component Imports
 import StatusPanel from './components/StatusPanel'
@@ -43,6 +44,36 @@ function App() {
 
   const [sessionLevel, setSessionLevel] = useState(null);
 
+
+// ... inside your App() function ...
+useEffect(() => {
+  if (!Capacitor.isNativePlatform()) return;
+
+  const backButtonListener = CapApp.addListener('backButton', () => {
+    // Priority 1: High-level Overlays
+    if (showShop) {
+      setShowShop(false);
+      systemSounds.click();
+    } else if (showLicense) {
+      setShowLicense(false);
+      systemSounds.click();
+    } else if (showShadowHub) {
+      setShowShadowHub(false);
+      systemSounds.click();
+    } else if (showLevelUp) {
+      setShowLevelUp(false);
+    } 
+    // Priority 2: System Exit
+    else {
+      // If no overlays are active, initiate extraction (Exit App)
+      CapApp.exitApp();
+    }
+  });
+
+  return () => {
+    backButtonListener.remove();
+  };
+}, [showShop, showLicense, showShadowHub, showLevelUp]);// Add your modal states as dependencies
   // 1. SYSTEM INITIALIZATION & PLATFORM GUARDS
   useEffect(() => {
     const bootSystem = async () => {

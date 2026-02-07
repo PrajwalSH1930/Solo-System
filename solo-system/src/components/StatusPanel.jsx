@@ -140,16 +140,40 @@ export default function StatusPanel() {
             </div>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-2 mb-8">
+          {/* Stats Grid - Mobile Optimized */}
+          <div className="grid grid-cols-2 gap-3 mb-8">
             {Object.entries(stats).map(([name, value]) => (
-              <div key={name} className="bg-white/[0.03] p-3 border border-white/5 flex justify-between items-center group hover:bg-white/[0.06] transition-all">
-                <span className="uppercase text-[9px] text-gray-500 font-black tracking-widest group-hover:text-gray-300">{name}</span>
-                <div className="flex items-center gap-3">
-                    <span className={`font-black text-sm ${accentColor}`}>{value}</span>
+              <div 
+                key={name} 
+                className="bg-white/[0.03] p-3 border border-white/5 flex flex-col justify-center min-h-[50px] group hover:bg-white/[0.06] transition-all relative overflow-hidden"
+              >
+                {/* Stat Name */}
+                <span className="uppercase text-[7px] text-gray-500 font-black tracking-widest mb-1">
+                  {name}
+                </span>
+
+                {/* Value and Button Row */}
+                <div className="flex items-center justify-between">
+                  <span className={`font-black text-sm ${accentColor} leading-none`}>
+                    {value}
+                  </span>
+
+                  {/* Floating Button Logic to prevent layout shift */}
+                  <AnimatePresence>
                     {abilityPoints > 0 && (
-                        <button onClick={() => { systemSounds.click(); increaseStat(name); }} className={`w-5 h-5 flex items-center justify-center border font-black text-xs ${isAwakened ? 'border-purple-500 text-purple-400' : 'border-cyan-500 text-cyan-400'} hover:bg-white hover:text-black transition-all`}>+</button>
+                      <motion.button 
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        onClick={() => { systemSounds.click(); increaseStat(name); }} 
+                        className={`w-6 h-6 flex items-center justify-center border font-black text-xs shrink-0
+                          ${isAwakened ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-cyan-500 text-cyan-400 bg-cyan-500/10'} 
+                          active:scale-90 transition-all rounded-sm ml-2`}
+                      >
+                        +
+                      </motion.button>
                     )}
+                  </AnimatePresence>
                 </div>
               </div>
             ))}

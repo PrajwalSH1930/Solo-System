@@ -31,12 +31,6 @@ android {
     // REMOVED: kotlinOptions block was here causing the error
 }
 
-repositories {
-    flatDir{
-        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
-    }
-}
-
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
@@ -47,6 +41,8 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation fileTree(dir: '../capacitor-cordova-android-plugins/src/main/libs', include: ['*.jar'])
 }
 
 apply from: 'capacitor.build.gradle'
