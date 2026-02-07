@@ -35,9 +35,9 @@ function App() {
     wakeUpTime 
   } = useHunterStore();
 
-  // Unified Refs for Initialization and Level Tracking
-  const isReady = useRef(false);
-  const prevLevelRef = useRef(0);
+  // FIX: This state tracks the level only FOR THIS SESSION.
+  // It starts as null every time you kill and reopen the app.
+  const [sessionLevel, setSessionLevel] = useState(null);
 
   // 1. Unified System Initialization
   useEffect(() => {
@@ -59,23 +59,24 @@ function App() {
     return () => clearInterval(timer);
   }, [tick, wakeUpTime]);
 
-  // 2. Level Up Trigger Logic (Fixed to prevent startup trigger)
+  // 2. Level Up Trigger Logic (Session Lock Fix)
   useEffect(() => {
-    // Wait for the store to load its real data
-    if (level > 0 && !isReady.current) {
-      prevLevelRef.current = level;
-      isReady.current = true;
-      return;
+    // Wait until the store actually loads your level from storage (level > 0)
+    if (level === 0) return;
+
+    // INITIAL LOAD: If sessionLevel is null, this is the first time the app is opening.
+    if (sessionLevel === null) {
+      setSessionLevel(level); // Lock the current level into this session
+      return; // EXIT: Do not show the level up overlay
     }
 
-    // Trigger only if system is ready AND level increased
-    if (isReady.current && level > prevLevelRef.current) {
+    // ACTIVE GAMEPLAY: If the level in the store is higher than our session lock
+    if (level > sessionLevel) {
       setShowLevelUp(true);
       systemSounds.levelUp();
+      setSessionLevel(level); // Update the session lock to the new level
     }
-    
-    prevLevelRef.current = level;
-  }, [level]);
+  }, [level, sessionLevel]);
 
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600);
@@ -87,6 +88,7 @@ function App() {
   return (
     <div className={`min-h-screen transition-colors duration-1000 flex flex-col items-center py-10 font-system text-white px-4 overflow-x-hidden relative ${isAwakened ? 'bg-[#000000] shadow-[inset_0_0_100px_rgba(168,85,247,0.15)]' : 'bg-[#000000]'}`}>
       
+      {/* Cinematic Level Up Cutscene */}
       <LevelUpOverlay 
         level={level} 
         visible={showLevelUp} 

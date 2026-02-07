@@ -42,7 +42,7 @@ const LevelUpOverlay = ({ level, visible, onComplete }) => {
             className="text-center z-10"
           >
             <h1 className="text-6xl font-black italic text-white drop-shadow-[0_0_20px_rgba(0,238,255,0.6)]">
-              LEVEL <span className="text-cyan-400">UP</span>
+              CURRENT <span className="text-cyan-400">LEVEL</span>
             </h1>
             <div className="mt-4 bg-white/10 py-2 px-10 border-y border-white/20">
               <span className="text-2xl font-bold">LV. {level}</span>
