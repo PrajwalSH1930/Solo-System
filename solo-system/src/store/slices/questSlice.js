@@ -43,10 +43,10 @@ export const createQuestSlice = (set, get) => ({
   penaltyActive: false,
 
   quests: [
-    { id: 1, title: "Pushups [0/50]", completed: false, reward: 25, goldReward: 100 },
-    { id: 2, title: "Sit-ups [0/50]", completed: false, reward: 25, goldReward: 100 },
-    { id: 3, title: "Squats [0/50]", completed: false, reward: 25, goldReward: 100 },
-    { id: 4, title: "Walking [6K]", completed: false, reward: 50, goldReward: 250 },
+    { id: 1, title: "Pushups [0/50]", completed: false, reward: 25, goldReward: 100, isHard: false },
+    { id: 2, title: "Sit-ups [0/50]", completed: false, reward: 25, goldReward: 100, isHard: false },
+    { id: 3, title: "Squats [0/50]", completed: false, reward: 25, goldReward: 100, isHard: false },
+    { id: 4, title: "Walking [6K]", completed: false, reward: 50, goldReward: 250, isHard: true },
   ],
 
   achievements: [
@@ -65,12 +65,18 @@ export const createQuestSlice = (set, get) => ({
     const quest = state.quests.find(q => q.id === id);
     if (quest && !quest.completed) {
       systemSounds.questComplete();
-      state.gainExp(quest.reward);
+      
+      if (state.addExperience) state.addExperience(quest.reward);
+      else if (state.gainExp) state.gainExp(quest.reward);
+
       const updatedQuests = state.quests.map(q => q.id === id ? { ...q, completed: true } : q);
+      
       set({ 
         gold: state.gold + quest.goldReward, 
         quests: updatedQuests, 
-        fatigue: Math.min(state.fatigue + 10, 100) 
+        fatigue: Math.min(state.fatigue + 10, 100),
+        // FIXED: Only trigger "Arise" if it's a Hard quest (like the 6K Walk)
+        extractionAvailable: quest.isHard ? true : false 
       });
     }
   },
@@ -85,20 +91,27 @@ export const createQuestSlice = (set, get) => ({
   completeDungeon: () => {
     const state = get();
     systemSounds.questComplete();
-    state.gainExp(state.activeDungeon?.exp || 100);
-    set({ inDungeon: false, activeDungeon: null, extractionAvailable: true });
+    if (state.addExperience) state.addExperience(state.activeDungeon?.exp || 100);
+    else if (state.gainExp) state.gainExp(state.activeDungeon?.exp || 100);
+
+    set({ 
+      inDungeon: false, 
+      activeDungeon: null, 
+      extractionAvailable: true // Dungeons ALWAYS allow extraction
+    });
   },
 
   attackBoss: () => set((state) => {
     systemSounds.click();
-    const damage = state.stats.strength + (state.shadows.length * 2);
+    const damage = state.stats.strength + (state.shadows.length * 5);
     const newHealth = Math.max(0, state.bossHealth - damage);
     if (newHealth === 0) {
       const ranks = ["E", "D", "C", "B", "A", "S"];
       set({ 
         bossActive: false, 
         rank: ranks[ranks.indexOf(state.rank) + 1] || "S", 
-        gold: state.gold + 5000 
+        gold: state.gold + 5000,
+        extractionAvailable: true // Bosses ALWAYS allow extraction
       });
     }
     return { bossHealth: newHealth };
