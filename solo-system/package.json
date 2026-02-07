@@ -19,6 +19,7 @@
     "@capacitor/local-notifications": "^8.0.0",
     "@capacitor/motion": "^8.0.0",
     "@capacitor/preferences": "^8.0.0",
+    "@capgo/capacitor-health": "^8.2.13",
     "@tailwindcss/vite": "^4.1.18",
     "framer-motion": "^12.29.2",
     "react": "^19.2.0",

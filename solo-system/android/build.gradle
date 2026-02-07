@@ -1,17 +1,17 @@
+// Top-level build file
+apply from: "variables.gradle"
+
 buildscript {
     repositories {
         google()
-        mavenCentral() // <--- Fix it to Central
+        mavenCentral()
     }
     dependencies {
-        // High-level Gradle plugin
         classpath 'com.android.tools.build:gradle:8.4.2'
-        // Standard Google Services
         classpath 'com.google.gms:google-services:4.4.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25" 
     }
 }
-
-apply from: "variables.gradle"
 
 allprojects {
     repositories {
@@ -20,20 +20,25 @@ allprojects {
     }
 }
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
-}
-
-// Global Java 17 Enforcement
+// 🦾 MASTER ENFORCEMENT: Force all sub-modules to use Java 21
 subprojects {
     afterEvaluate { project ->
         if (project.hasProperty('android')) {
             project.android {
                 compileOptions {
-                    sourceCompatibility JavaVersion.VERSION_17
-                    targetCompatibility JavaVersion.VERSION_17
+                    sourceCompatibility rootProject.ext.javaVersion
+                    targetCompatibility rootProject.ext.javaVersion
+                }
+                if (project.plugins.hasPlugin('kotlin-android')) {
+                    kotlinOptions {
+                        jvmTarget = '21'
+                    }
                 }
             }
         }
     }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
 }

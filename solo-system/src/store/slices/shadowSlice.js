@@ -4,31 +4,38 @@ import { systemSounds } from '../../utils/sounds';
 export const createShadowSlice = (set, get) => ({
   shadows: [],
   extractionAvailable: false,
-  shadowLimitReached: false, // 1. New State for the Popup
+  shadowLimitReached: false, 
 
-  // Action to close the popup manually
   closeLimitPopup: () => set({ shadowLimitReached: false }),
 
-  extractShadow: () => set((state) => {
+  extractShadow: () => {
+    const state = get();
+    // Adjust limit based on awakening status
     const shadowLimit = state.isAwakened ? 20 : 4;
     
-    // 2. CHECK LIMIT: If full, trigger the popup and stop
+    // 1. CHECK LIMIT
     if (state.shadows.length >= shadowLimit) {
-      systemSounds.click(); // Optional: Error sound
-      return { shadowLimitReached: true, extractionAvailable: false };
+      systemSounds.click(); 
+      set({ shadowLimitReached: true, extractionAvailable: false });
+      return;
     }
     
-    // Find next available shadow
+    // 2. FIND AVAILABLE SHADOW
     const available = allShadows.filter(s => !state.shadows.find(existing => existing.name === s.name));
     
-    if (available.length === 0) return { extractionAvailable: false };
+    if (available.length === 0) {
+      set({ extractionAvailable: false });
+      return;
+    }
     
+    // 3. SUCCESSFUL EXTRACTION
     systemSounds.levelUp(); 
+    const newShadow = available[0];
     
-    return { 
-      shadows: [...state.shadows, available[0]], 
+    set((state) => ({ 
+      shadows: [...state.shadows, newShadow], 
       extractionAvailable: false, 
       stats: { ...state.stats, strength: state.stats.strength + 3 } 
-    };
-  }),
+    }));
+  },
 });
