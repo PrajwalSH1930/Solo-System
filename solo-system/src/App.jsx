@@ -1,8 +1,10 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useHunterStore } from './store/useHunterStore'
 import { motion, AnimatePresence } from 'framer-motion'
 import { systemSounds } from './utils/sounds'
 import { setupAlarmSystem, checkAlarmPermissions, scheduleWakeUpAlarm } from './utils/notifications'
+import { Motion } from '@capacitor/motion'
+import { Capacitor } from '@capacitor/core'
 
 // Component Imports
 import StatusPanel from './components/StatusPanel'
@@ -21,62 +23,88 @@ import VitalitySync from './components/VitalitySync'
 import Registration from './components/Registration'
 import JobTrialOverlay from './components/JobTrialOverlay'
 import LevelUpOverlay from './components/LevelUpOverlay'
+import ShadowHub from './components/ShadowHub'
 
 function App() {
   const [showShop, setShowShop] = useState(false);
   const [showLicense, setShowLicense] = useState(false);
+  const [showShadowHub, setShowShadowHub] = useState(false);
   const [isBooting, setIsBooting] = useState(true);
   const [showLevelUp, setShowLevelUp] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   
   const { 
     timeLeft, tick, gold, secretQuest, 
     completeSecretQuest, extractionAvailable, extractShadow,
     playerName, isAwakened, level,
-    wakeUpTime 
+    wakeUpTime, shadowLimitReached, closeLimitPopup,
+    shadows, initializeSystem 
   } = useHunterStore();
 
-  // FIX: This state tracks the level only FOR THIS SESSION.
-  // It starts as null every time you kill and reopen the app.
   const [sessionLevel, setSessionLevel] = useState(null);
 
-  // 1. Unified System Initialization
+  // 1. SYSTEM INITIALIZATION & PLATFORM GUARDS
   useEffect(() => {
-    const initializeSystem = async () => {
-      await setupAlarmSystem();
-      await checkAlarmPermissions();
-      if (wakeUpTime) {
-        await scheduleWakeUpAlarm(wakeUpTime);
+    const bootSystem = async () => {
+      // Only attempt native features on Android/iOS
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await setupAlarmSystem().catch(() => console.warn("Alarms unsupported"));
+          await checkAlarmPermissions().catch(() => console.warn("Permissions unsupported"));
+          if (wakeUpTime) {
+            await scheduleWakeUpAlarm(wakeUpTime).catch(() => console.warn("Schedule failed"));
+          }
+        } catch (e) {
+          console.error("Native Plugin Error:", e);
+        }
       }
+
+      // Initialize store data (Fatigue, Quests, etc.)
+      if (initializeSystem) initializeSystem();
     };
 
-    initializeSystem();
+    bootSystem();
 
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
+    // Accelerometer Guard
+    let accelListener;
+    const startMotion = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          accelListener = await Motion.addListener('accel', (event) => {
+            setTilt({
+              x: event.accelerationIncludingGravity.x * 1.5,
+              y: event.accelerationIncludingGravity.y * 1.5
+            });
+          });
+        } catch (e) {
+          console.log("Motion sensors disabled.");
+        }
+      }
+    };
+    startMotion();
 
     const timer = setInterval(() => tick(), 1000);
-    return () => clearInterval(timer);
-  }, [tick, wakeUpTime]);
+    return () => {
+      clearInterval(timer);
+      if (accelListener) accelListener.remove();
+    };
+  }, [tick, wakeUpTime, initializeSystem]);
 
-  // 2. Level Up Trigger Logic (Session Lock Fix)
+  // 2. PROTECTED LEVEL UP LOGIC (Prevents trigger during splash)
   useEffect(() => {
-    // Wait until the store actually loads your level from storage (level > 0)
-    if (level === 0) return;
+    if (isBooting || level === 0) return;
 
-    // INITIAL LOAD: If sessionLevel is null, this is the first time the app is opening.
     if (sessionLevel === null) {
-      setSessionLevel(level); // Lock the current level into this session
-      return; // EXIT: Do not show the level up overlay
+      setSessionLevel(level);
+      return;
     }
 
-    // ACTIVE GAMEPLAY: If the level in the store is higher than our session lock
     if (level > sessionLevel) {
       setShowLevelUp(true);
-      systemSounds.levelUp();
-      setSessionLevel(level); // Update the session lock to the new level
+      systemSounds.levelUp(); // Sound context will be valid because user had to click "Enter"
+      setSessionLevel(level);
     }
-  }, [level, sessionLevel]);
+  }, [level, sessionLevel, isBooting]);
 
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600);
@@ -86,65 +114,117 @@ function App() {
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-1000 flex flex-col items-center py-10 font-system text-white px-4 overflow-x-hidden relative ${isAwakened ? 'bg-[#000000] shadow-[inset_0_0_100px_rgba(168,85,247,0.15)]' : 'bg-[#000000]'}`}>
+    <div className={`min-h-screen transition-colors duration-1000 flex flex-col items-center py-10 font-system text-white px-4 overflow-x-hidden relative ${isAwakened ? 'bg-[#000000] shadow-[inset_0_0_150px_rgba(168,85,247,0.1)]' : 'bg-[#000000]'}`}>
       
-      {/* Cinematic Level Up Cutscene */}
-      <LevelUpOverlay 
-        level={level} 
-        visible={showLevelUp} 
-        onComplete={() => setShowLevelUp(false)} 
-      />
+      {/* --- PARALLAX BACKGROUND --- */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <motion.div
+          animate={{ x: tilt.x * -8, y: tilt.y * -8, rotate: 360 }}
+          transition={{ rotate: { repeat: Infinity, duration: 100, ease: "linear" }, type: "spring", stiffness: 30 }}
+          className="absolute -top-20 -right-20 w-[600px] h-[600px] border border-cyan-500/5 rounded-full opacity-40"
+        />
+        <motion.div
+          animate={{ x: tilt.x * 5, y: tilt.y * 5, rotate: -360 }}
+          transition={{ rotate: { repeat: Infinity, duration: 150, ease: "linear" }, type: "spring", stiffness: 30 }}
+          className="absolute bottom-0 -left-20 w-80 h-80 border-2 border-purple-500/5 rounded-full opacity-30"
+        />
+      </div>
 
+      {/* --- OVERLAYS & MODALS --- */}
       <AnimatePresence>
         {isBooting && (
-          <SystemSplash onComplete={() => setIsBooting(false)} />
+          <SystemSplash key="splash" onComplete={() => setIsBooting(false)} />
         )}
       </AnimatePresence>
 
-      {!isBooting && !playerName && <Registration />}
-      {!isBooting && level >= 40 && !isAwakened && <JobTrialOverlay />}
+      {/* Only show LevelUp if not booting */}
+      {!isBooting && (
+        <LevelUpOverlay 
+          level={level} 
+          visible={showLevelUp} 
+          onComplete={() => setShowLevelUp(false)} 
+        />
+      )}
 
+      {/* --- SHADOW CAPACITY WARNING --- */}
+      <AnimatePresence>
+        {shadowLimitReached && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[600] flex items-center justify-center bg-black/90 backdrop-blur-md p-6"
+          >
+            <div className="bg-[#0a0a0a] border-2 border-red-600 p-8 w-full max-w-xs text-center relative shadow-[0_0_50px_rgba(220,38,38,0.3)]">
+              <h3 className="text-2xl font-black text-red-500 uppercase mb-4 tracking-tighter">Capacity Full</h3>
+              <p className="text-xs text-gray-400 mb-8 leading-relaxed font-mono">
+                Extraction Failed. Your Shadow Storage has reached its maximum limit ({isAwakened ? 10 : 4}).
+              </p>
+              <button 
+                onClick={() => { systemSounds.click(); closeLimitPopup(); }} 
+                className="w-full bg-red-600/10 border border-red-500 text-red-100 py-3 text-[10px] uppercase font-black"
+              >
+                Clear Warning
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MAIN HUD: RENDERED AFTER BOOT --- */}
       {!isBooting && (
         <motion.div 
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}
-          className="w-full flex flex-col items-center"
+          className="w-full flex flex-col items-center relative z-10"
         >
+          {/* Global Functional Overlays */}
+          {!playerName && <Registration />}
+          {level >= 40 && !isAwakened && <JobTrialOverlay />}
+          
           <RestMode /> 
           <MorningReport />
           <DailyRewardModal />
           <PenaltyOverlay />
           <BossBattle />
-          <HunterLicense isOpen={showLicense} onClose={() => setShowLicense(false)} />
           
+          <HunterLicense isOpen={showLicense} onClose={() => setShowLicense(false)} />
           <AnimatePresence>
             {showShop && <StoreOverlay isOpen={showShop} onClose={() => setShowShop(false)} />}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {secretQuest && !secretQuest.completed && (
-              <motion.div 
-                initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }} 
-                className="fixed bottom-10 z-50 w-full max-w-xs bg-orange-600 border-2 border-white p-4 shadow-[0_0_20px_rgba(234,88,12,0.5)]"
-              >
-                  <h4 className="text-[10px] font-bold tracking-widest text-white mb-1 uppercase underline italic">! Warning: Secret Quest !</h4>
-                  <p className="text-xs mb-3 italic">{secretQuest.title}</p>
-                  <button onClick={() => { completeSecretQuest(); systemSounds.levelUp(); }} className="w-full bg-white text-orange-600 font-black py-1 text-[10px] uppercase hover:bg-gray-200 transition-colors">Accept Reward</button>
+            {showShadowHub && (
+              <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[500] bg-black">
+                <div className="h-full overflow-y-auto no-scrollbar p-6">
+                  <button onClick={() => setShowShadowHub(false)} className="mb-4 text-[9px] text-gray-500 tracking-widest font-black uppercase">[ Back to Sovereign Seat ]</button>
+                  <ShadowHub />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <div className="w-full max-w-md flex justify-between items-center mb-6 px-1 relative z-10">
-             <button onClick={() => { setShowLicense(true); systemSounds.click(); }} className="border border-white/20 px-3 py-1 text-[9px] text-gray-400 hover:text-white hover:border-white transition-all uppercase tracking-widest">License</button>
-             <div className="text-center">
-                <p className="text-[7px] text-gray-500 tracking-[0.4em] uppercase mb-0.5 font-bold">System Time</p>
-                <p className={`text-sm font-bold tracking-widest font-mono ${isAwakened ? 'text-purple-500 drop-shadow-[0_0_5px_#a855f7]' : 'text-orange-500 drop-shadow-[0_0_5px_rgba(249,115,22,0.4)]'}`}>
-                   {formatTime(timeLeft)}
-                </p>
-             </div>
-             <button onClick={() => { setShowShop(true); systemSounds.click(); }} className={`border px-3 py-1 text-[9px] transition-all uppercase tracking-widest font-bold ${isAwakened ? 'border-purple-500 text-purple-400 bg-purple-900/10' : 'border-hunter-blue text-hunter-blue bg-blue-500/10'}`}>Store [{gold}G]</button>
+          {/* --- TOP NAVIGATION BAR --- */}
+          <div className="w-full max-w-md flex justify-between items-center mb-8 px-1 relative z-10">
+             <button onClick={() => { setShowLicense(true); systemSounds.click(); }} className="border border-white/10 px-4 py-1.5 text-[9px] text-gray-500 hover:text-white transition-all uppercase tracking-widest italic">License</button>
+             
+             {/* Monarch Center Icon */}
+             <button onClick={() => { setShowShadowHub(true); systemSounds.click(); }} className="flex flex-col items-center group relative px-6">
+                <motion.div 
+                  animate={isAwakened ? { scale: [1, 1.15, 1], filter: ["drop-shadow(0 0 2px #a855f7)", "drop-shadow(0 0 10px #a855f7)"] } : {}}
+                  transition={{ repeat: Infinity, duration: 2.5 }}
+                  className={`text-2xl mb-1 ${isAwakened ? 'grayscale-0' : 'grayscale opacity-30'}`}
+                >🔥</motion.div>
+                <span className="text-[7px] text-gray-500 font-black uppercase tracking-[0.2em]">Shadows: {shadows.length}</span>
+             </button>
+
+             <button onClick={() => { setShowShop(true); systemSounds.click(); }} className={`border px-4 py-1.5 text-[9px] transition-all uppercase tracking-widest font-black italic ${isAwakened ? 'border-purple-600 text-purple-400 bg-purple-950/10' : 'border-cyan-600 text-cyan-400 bg-cyan-950/10'}`}>Store [{gold}G]</button>
           </div>
 
-          <div className="w-full max-w-md space-y-6 relative z-10">
+          {/* --- SYSTEM HUD TIMER --- */}
+          <div className="mb-10 text-center relative">
+              <p className="text-[8px] text-gray-600 tracking-[0.6em] uppercase mb-2 font-black">System Time Remaining</p>
+              <p className={`text-4xl font-black tracking-tighter font-mono italic ${isAwakened ? 'text-purple-500 drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]' : 'text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]'}`}>
+                 {formatTime(timeLeft)}
+              </p>
+          </div>
+
+          {/* --- CORE INTERFACE PANELS --- */}
+          <div className="w-full max-w-md space-y-8 relative z-10 pb-20">
             <VitalitySync />
             <StatusPanel />
             <DungeonPanel />
@@ -152,18 +232,29 @@ function App() {
             <LogPanel />
           </div>
 
+          {/* --- CINEMATIC EXTRACTION --- */}
           <AnimatePresence>
             {extractionAvailable && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 z-[200] flex flex-col items-center justify-center p-6 text-center">
-                <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(88,28,135,0.4)_0%,transparent_70%)] animate-pulse" />
-                <motion.h2 animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.05, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="text-5xl font-black text-purple-500 tracking-[0.3em] mb-4 italic drop-shadow-[0_0_15px_rgba(168,85,247,0.8)]">ARISE</motion.h2>
-                <p className="text-[10px] text-purple-300 mb-8 max-w-xs uppercase tracking-[0.5em] font-bold">A soul lingers from the Gate... Extract?</p>
-                <button onClick={extractShadow} className="relative z-10 px-12 py-4 bg-transparent border-2 border-purple-500 text-purple-500 font-black tracking-[0.4em] hover:bg-purple-500 hover:text-black transition-all uppercase shadow-[0_0_30px_rgba(168,85,247,0.3)]">Extract Shadow</button>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/98 z-[1000] flex flex-col items-center justify-center p-6 text-center">
+                <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(88,28,135,0.4)_0%,transparent_75%)] animate-pulse" />
+                <motion.h2 
+                  animate={{ opacity: [0.4, 1, 0.4], scale: [0.95, 1, 0.95] }} 
+                  transition={{ repeat: Infinity, duration: 3 }} 
+                  className="text-7xl font-black text-purple-600 mb-6 italic drop-shadow-[0_0_30px_#a855f7]"
+                >
+                  ARISE
+                </motion.h2>
+                <button 
+                  onClick={() => { systemSounds.levelUp(); extractShadow(); }} 
+                  className="relative z-10 px-16 py-5 bg-transparent border-2 border-purple-500 text-purple-400 font-black tracking-[0.5em] hover:bg-purple-600 hover:text-black transition-all uppercase shadow-[0_0_40px_rgba(168,85,247,0.2)]"
+                >
+                  Extract Shadow
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <p className="mt-8 text-[8px] text-gray-700 tracking-[0.4em] uppercase text-center opacity-40">The system only rewards the persistent.</p>
+          <p className="fixed bottom-6 text-[8px] text-gray-700 tracking-[0.4em] uppercase opacity-40">The system only rewards the persistent.</p>
         </motion.div>
       )}
     </div>
