@@ -4,7 +4,7 @@ import { useHunterStore } from '../store/useHunterStore';
 import InventoryModal from './InventoryModal';
 import { systemSounds } from '../utils/sounds';
 
-// --- SHADOW DETAIL MODAL: THE MONARCH'S ARCHIVE ---
+// --- SHADOW DETAIL MODAL (Restored Full Animations & Styling) ---
 function ShadowDetailModal({ shadow, onClose }) {
   if (!shadow) return null;
   return (
@@ -13,7 +13,6 @@ function ShadowDetailModal({ shadow, onClose }) {
       className="fixed inset-0 z-[600] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 font-system"
     >
       <div className="relative w-full max-w-sm aspect-[2/3] overflow-hidden border border-purple-500/50 bg-[#050505] shadow-[0_0_60px_rgba(168,85,247,0.3)] rounded-sm flex flex-col">
-        {/* Shadow Portrait */}
         <div className="absolute inset-0 z-0">
           {shadow.image ? (
             <motion.img 
@@ -140,25 +139,16 @@ export default function StatusPanel() {
             </div>
           </div>
 
-          {/* Stats Grid - Mobile Optimized */}
+          {/* Stats Grid - Mobile Optimized with Allocation */}
           <div className="grid grid-cols-2 gap-3 mb-8">
             {Object.entries(stats).map(([name, value]) => (
               <div 
                 key={name} 
                 className="bg-white/[0.03] p-3 border border-white/5 flex flex-col justify-center min-h-[50px] group hover:bg-white/[0.06] transition-all relative overflow-hidden"
               >
-                {/* Stat Name */}
-                <span className="uppercase text-[7px] text-gray-500 font-black tracking-widest mb-1">
-                  {name}
-                </span>
-
-                {/* Value and Button Row */}
+                <span className="uppercase text-[7px] text-gray-500 font-black tracking-widest mb-1">{name}</span>
                 <div className="flex items-center justify-between">
-                  <span className={`font-black text-sm ${accentColor} leading-none`}>
-                    {value}
-                  </span>
-
-                  {/* Floating Button Logic to prevent layout shift */}
+                  <span className={`font-black text-sm ${accentColor} leading-none`}>{value}</span>
                   <AnimatePresence>
                     {abilityPoints > 0 && (
                       <motion.button 
@@ -179,7 +169,20 @@ export default function StatusPanel() {
             ))}
           </div>
 
-          {/* Equipment Row */}
+          {/* Hydration & Equipment (Combined Row) */}
+          <div className="grid grid-cols-1 gap-3 mb-8">
+             <div className="p-3 border border-white/10 bg-white/[0.02] flex justify-between items-center group">
+               <div className="flex items-center gap-4">
+                  <span className="text-2xl group-hover:scale-110 transition-transform">💧</span>
+                  <div>
+                    <p className="text-[7px] text-gray-600 uppercase font-black">Hydration</p>
+                    <p className="text-[10px] font-black text-white">{waterGlassCount} / 8 Glasses</p>
+                  </div>
+               </div>
+               <button onClick={() => { systemSounds.click(); drinkWater(); }} className={`text-xs font-black uppercase p-2 border ${accentColor} border-current hover:bg-white/5 transition-all`}>Consumable</button>
+             </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 mb-8">
             <div className="p-3 border border-white/10 bg-white/[0.02] flex items-center gap-4 group">
               <span className="text-2xl group-hover:scale-110 transition-transform">{equippedItems.weapon ? "🗡️" : "⚔️"}</span>

@@ -1,50 +1,99 @@
 import { Health } from '@capgo/capacitor-health';
+import { Capacitor } from '@capacitor/core';
 
 export const createHealthSlice = (set, get) => ({
 
   totalStepsToday: 0,
+
+  heartRateCurrent: null,
+  heartRateAverageToday: null,
+  heartRateZone: 'UNSUPPORTED',
+  lastHeartSampleTime: null,
+
   lastSyncTimestamp: null,
   healthAuthorized: false,
 
   syncHealthData: async () => {
     try {
-
       console.log("=== START HEALTH SYNC ===");
 
-      const { available } = await Health.isAvailable();
-      console.log("Available:", available);
+      const platform = Capacitor.getPlatform(); // 'android' | 'ios'
+      console.log("Platform:", platform);
 
+      const { available } = await Health.isAvailable();
       if (!available) return;
 
-      const auth = await Health.requestAuthorization({
-        read: ['steps'],
+      // ✅ Only request what the platform supports
+      const readTypes =
+        platform === 'ios'
+          ? ['steps', 'heart_rate']
+          : ['steps'];
+
+      await Health.requestAuthorization({
+        read: readTypes,
         write: []
       });
 
-      console.log("Auth:", auth);
-
       const start = new Date();
       start.setHours(0, 0, 0, 0);
+      const now = new Date();
 
-      const result = await Health.readSamples({
-  type: 'steps',
-  dataType: 'steps',
-  startDate: start.toISOString(),
-  endDate: new Date().toISOString()
-});
+      // ======================
+      // STEPS
+      // ======================
+      const stepsResult = await Health.readSamples({
+        type: 'steps',
+        dataType: 'steps',
+        startDate: start.toISOString(),
+        endDate: now.toISOString()
+      });
 
-
-      console.log("Raw Result:", JSON.stringify(result, null, 2));
-
-      const totalSteps = (result.samples || []).reduce(
+      const totalSteps = (stepsResult.samples || []).reduce(
         (sum, s) => sum + (s.value || 0),
         0
       );
 
-      console.log("TOTAL STEPS:", totalSteps);
+      // ======================
+      // HEART RATE (iOS ONLY)
+      // ======================
+      let currentHR = null;
+      let avgHR = null;
+      let zone = 'UNSUPPORTED';
+      let lastSampleTime = null;
+
+      if (platform === 'ios') {
+        const hrResult = await Health.readSamples({
+          type: 'heart_rate',
+          dataType: 'heart_rate',
+          startDate: start.toISOString(),
+          endDate: now.toISOString()
+        });
+
+        const samples = hrResult.samples || [];
+
+        if (samples.length > 0) {
+          const latest = samples[samples.length - 1];
+          currentHR = Math.round(latest.value);
+          lastSampleTime = new Date(latest.startDate).getTime();
+
+          const total = samples.reduce((s, x) => s + x.value, 0);
+          avgHR = Math.round(total / samples.length);
+
+          if (currentHR < 60) zone = 'RESTING';
+          else if (currentHR < 90) zone = 'NORMAL';
+          else if (currentHR < 120) zone = 'ACTIVE';
+          else zone = 'COMBAT';
+        }
+      }
 
       set({
         totalStepsToday: totalSteps,
+
+        heartRateCurrent: currentHR,
+        heartRateAverageToday: avgHR,
+        heartRateZone: zone,
+        lastHeartSampleTime: lastSampleTime,
+
         lastSyncTimestamp: Date.now(),
         healthAuthorized: true
       });
