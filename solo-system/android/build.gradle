@@ -9,7 +9,9 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.4.2'
         classpath 'com.google.gms:google-services:4.4.2'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25" 
+
+        // ✅ UPGRADED Kotlin to match Capacitor + coroutines
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0"
     }
 }
 
@@ -20,7 +22,21 @@ allprojects {
     }
 }
 
-// 🦾 MASTER ENFORCEMENT: Force all sub-modules to use Java 21
+/**
+ * 🔒 FORCE KOTLIN STDLIB ALIGNMENT (CRITICAL)
+ * Prevents mixed Kotlin versions (1.9 vs 2.1)
+ */
+subprojects {
+    configurations.all {
+        resolutionStrategy {
+            force "org.jetbrains.kotlin:kotlin-stdlib:2.1.0"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0"
+        }
+    }
+}
+
+// 🦾 MASTER ENFORCEMENT: Java 21 everywhere
 subprojects {
     afterEvaluate { project ->
         if (project.hasProperty('android')) {
@@ -31,7 +47,7 @@ subprojects {
                 }
                 if (project.plugins.hasPlugin('kotlin-android')) {
                     kotlinOptions {
-                        jvmTarget = '21'
+                        jvmTarget = "21"
                     }
                 }
             }

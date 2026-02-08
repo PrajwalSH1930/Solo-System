@@ -6,3 +6,7 @@ npx cap copy android
 
 # 3. Update the native plugins (like Preferences and Sounds)
 npx cap update android
+npm run build
+npx cap copy android
+npx cap run android
+

@@ -30,6 +30,7 @@ import LevelUpOverlay from './components/LevelUpOverlay'
 import ShadowHub from './components/ShadowHub'
 import AriseOverlay from './components/Shadows/AriseOverlay';
 import ManaCore from './components/ManaCore';
+import SafeZoneHUD from './components/SafeZoneHUD'
 
 function App() {
   const [showShop, setShowShop] = useState(false);
@@ -194,6 +195,7 @@ function App() {
           </div>
 
           <div className="w-full max-w-md space-y-8 pb-20">
+            <SafeZoneHUD />
             <VitalitySync /> 
             <StatusPanel /> 
             <ManaCore /> 

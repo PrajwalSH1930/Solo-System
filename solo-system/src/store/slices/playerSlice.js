@@ -17,13 +17,14 @@ export const createPlayerSlice = (set, get) => ({
   maxMana: 100,
   fatigue: 0,
   maxFatigue: 100,
-  stats: { strength: 10, agility: 10, intelligence: 10, perception: 10 },
+  // Added 'vitality' to stats to link with your health sync later
+  stats: { strength: 10, agility: 10, intelligence: 10, perception: 10, vitality: 10 },
   skills: [],
-  isSystemLoaded: false, // Critical for avoiding level-up spam
+  isSystemLoaded: false,
 
   setPlayerName: (name) => {
     set({ playerName: name });
-    get().addLog(`Identity Verified: Player [${name}] registered.`);
+    if (get().addLog) get().addLog(`Identity Verified: Player [${name}] registered.`);
   },
 
   initializeSystem: () => set({ isSystemLoaded: true }),
@@ -38,7 +39,6 @@ export const createPlayerSlice = (set, get) => ({
   gainExp: (amount) => set((state) => {
     if (state.bossActive) return state;
     
-    // Calculate Multipliers
     let fatigueMultiplier = state.fatigue >= 100 ? 0 : state.fatigue > 70 ? 0.5 : 1.0;
     const intBonus = state.stats.intelligence * 0.01; 
     const streakMultiplier = state.currentStreak >= 3 ? 2 : 1;
@@ -50,15 +50,14 @@ export const createPlayerSlice = (set, get) => ({
     let newPoints = state.abilityPoints;
     let triggerBoss = false;
 
-    // Level Up Logic
     if (newExp >= state.nextLevelExp) {
       newLevel += 1;
       newExp -= state.nextLevelExp;
       newNextLevelExp = Math.floor(state.nextLevelExp * 1.5);
       newPoints += 5;
       
-      // Only play sound if system is loaded
       if (state.isSystemLoaded) systemSounds.levelUp();
+      if (get().addLog) get().addLog(`SYSTEM: LEVEL UP! Current Level: ${newLevel}`);
       
       if (newLevel % 10 === 0) triggerBoss = true; 
     }
@@ -74,10 +73,21 @@ export const createPlayerSlice = (set, get) => ({
     };
   }),
 
-  increaseStat: (name) => set((s) => ({ 
-    stats: { ...s.stats, [name]: s.stats[name] + 1 }, 
-    abilityPoints: s.abilityPoints - 1 
-  })),
+  // 🧬 IMPROVED STAT ALLOCATION
+  increaseStat: (statName) => {
+    const state = get();
+    if (state.abilityPoints > 0) {
+      systemSounds.click(); // Using your sound utility
+      set((s) => ({ 
+        stats: { ...s.stats, [statName]: s.stats[statName] + 1 }, 
+        abilityPoints: s.abilityPoints - 1 
+      }));
+      
+      if (get().addLog) {
+        get().addLog(`Stat Increased: ${statName.toUpperCase()} is now ${get().stats[statName]}`);
+      }
+    }
+  },
 
   triggerAwakening: (chosenJob) => {
     const state = get();
@@ -89,7 +99,7 @@ export const createPlayerSlice = (set, get) => ({
       maxMana: state.maxMana + 500, 
       mana: state.maxMana + 500 
     });
-    get().addLog("SYSTEM EVOLUTION COMPLETE. PROTOCOL 'MONARCH' ACTIVE.");
+    if (get().addLog) get().addLog("SYSTEM EVOLUTION COMPLETE. PROTOCOL 'MONARCH' ACTIVE.");
     systemSounds.levelUp();
   },
 });

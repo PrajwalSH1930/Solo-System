@@ -9,6 +9,7 @@ import { createQuestSlice } from './slices/questSlice'
 import { createSystemSlice } from './slices/systemSlice'
 import { createHealthSlice } from './slices/healthSlice'
 import { createFocusSlice } from './slices/focusSlice'
+import { createSafeZoneSlice } from './slices/safeZoneSlice';
 
 export const useHunterStore = create(
   persist(
@@ -19,6 +20,7 @@ export const useHunterStore = create(
       ...createSystemSlice(...a),
       ...createHealthSlice(...a),
       ...createFocusSlice(...a),
+      ...createSafeZoneSlice(...a),
     }),
     {
       name: 'hunter-storage',
